@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
 import { Suspense, useState, useEffect } from 'react';
 import type React from 'react';
-import { useAuth, useUser } from '@/firebase/provider';
+import { useAuth, useUser } from '@/firebase';
 import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,6 +41,14 @@ function LoginForm() {
 
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!auth) {
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: 'Firebase is not available. Please try again later.',
+      });
+      return;
+    }
     if (!email || !password) {
       toast({
         variant: 'destructive',
