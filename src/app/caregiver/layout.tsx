@@ -23,9 +23,10 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { signOut } from 'firebase/auth';
 
 export default function CaregiverLayout({
   children,
@@ -33,6 +34,7 @@ export default function CaregiverLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -40,6 +42,13 @@ export default function CaregiverLayout({
       router.push('/login?role=caregiver');
     }
   }, [user, isUserLoading, router]);
+
+  const handleLogout = () => {
+    if (auth) {
+      signOut(auth);
+      router.push('/');
+    }
+  };
 
   if (isUserLoading || !user) {
     return (
@@ -106,11 +115,9 @@ export default function CaregiverLayout({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="/">
-                    <LogOut />
-                    Logout
-                  </Link>
+                <SidebarMenuButton onClick={handleLogout}>
+                  <LogOut />
+                  Logout
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

@@ -1,9 +1,11 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { PhoneOutgoing } from 'lucide-react';
-import { useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { signOut } from 'firebase/auth';
+import Link from 'next/link';
 
 export default function UserLayout({
   children,
@@ -11,6 +13,7 @@ export default function UserLayout({
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -18,6 +21,13 @@ export default function UserLayout({
       router.push('/login?role=user');
     }
   }, [user, isUserLoading, router]);
+
+  const handleLogout = () => {
+    if (auth) {
+      signOut(auth);
+      router.push('/');
+    }
+  };
 
   if (isUserLoading || !user) {
     return (
@@ -28,6 +38,11 @@ export default function UserLayout({
   }
   return (
     <div className="min-h-screen bg-background text-foreground relative">
+      <header className="absolute top-4 right-4">
+        <Button variant="ghost" onClick={handleLogout}>
+          Logout
+        </Button>
+      </header>
       <main className="container mx-auto max-w-4xl p-4 sm:p-6 md:p-8">
         {children}
       </main>
