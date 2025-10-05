@@ -24,7 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useUser, useAuth } from '@/firebase';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { signOut } from 'firebase/auth';
 
@@ -36,6 +36,7 @@ export default function CaregiverLayout({
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -47,6 +48,23 @@ export default function CaregiverLayout({
     if (auth) {
       signOut(auth);
       router.push('/');
+    }
+  };
+
+  const getPageTitle = () => {
+    switch (pathname) {
+      case '/caregiver':
+        return 'Dashboard';
+      case '/caregiver/users':
+        return 'Users';
+      case '/caregiver/schedules':
+        return 'Schedules';
+      case '/caregiver/reports':
+        return 'Reports';
+      case '/caregiver/settings':
+        return 'Settings';
+      default:
+        return 'Dashboard';
     }
   };
 
@@ -71,7 +89,10 @@ export default function CaregiverLayout({
           <SidebarContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/caregiver'}
+                >
                   <Link href="/caregiver">
                     <LayoutDashboard />
                     Dashboard
@@ -79,24 +100,33 @@ export default function CaregiverLayout({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="#">
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/caregiver/users'}
+                >
+                  <Link href="/caregiver/users">
                     <Users />
                     Users
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="#">
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/caregiver/schedules'}
+                >
+                  <Link href="/caregiver/schedules">
                     <CalendarClock />
                     Schedules
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="#">
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/caregiver/reports'}
+                >
+                  <Link href="/caregiver/reports">
                     <BarChart3 />
                     Reports
                   </Link>
@@ -107,8 +137,11 @@ export default function CaregiverLayout({
           <SidebarFooter>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link href="#">
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/caregiver/settings'}
+                >
+                  <Link href="/caregiver/settings">
                     <Settings />
                     Settings
                   </Link>
@@ -124,7 +157,10 @@ export default function CaregiverLayout({
             <div className="flex items-center gap-3 p-3 border-t">
               <Avatar>
                 <AvatarImage
-                  src={user.photoURL ?? "https://i.pravatar.cc/150?u=a042581f4e29026024d"}
+                  src={
+                    user.photoURL ??
+                    'https://i.pravatar.cc/150?u=a042581f4e29026024d'
+                  }
                   alt="Caregiver"
                 />
                 <AvatarFallback>
@@ -146,7 +182,7 @@ export default function CaregiverLayout({
           <header className="flex h-14 lg:h-[60px] items-center gap-4 border-b bg-background px-6 sticky top-0 z-30">
             <SidebarTrigger className="md:hidden" />
             <div className="flex-1">
-              <h1 className="font-semibold text-lg">Dashboard</h1>
+              <h1 className="font-semibold text-lg">{getPageTitle()}</h1>
             </div>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Bell className="h-5 w-5" />
