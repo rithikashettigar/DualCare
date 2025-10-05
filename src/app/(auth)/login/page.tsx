@@ -16,8 +16,8 @@ import { Logo } from '@/components/logo';
 import { Suspense, useState, useEffect } from 'react';
 import type React from 'react';
 import { useAuth, useUser } from '@/firebase';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 function LoginForm() {
   const router = useRouter();
@@ -28,6 +28,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const role = searchParams.get('role') || 'user';
   const isCaregiver = role === 'caregiver';
@@ -39,7 +40,7 @@ function LoginForm() {
     }
   }, [user, isUserLoading, router, isCaregiver]);
 
-  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!auth) {
       toast({
@@ -57,8 +58,26 @@ function LoginForm() {
       });
       return;
     }
-    initiateEmailSignIn(auth, email, password);
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // The useEffect will handle the redirect
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description:
+          error.code === 'auth/invalid-credential'
+            ? 'Invalid email or password.'
+            : error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const isDisabled = isLoading || isUserLoading;
 
   return (
     <Card className="mx-auto max-w-sm w-full">
@@ -81,6 +100,7 @@ function LoginForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={isDisabled}
             />
           </div>
           <div className="grid gap-2">
@@ -99,10 +119,11 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isDisabled}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isUserLoading}>
-            {isUserLoading ? 'Logging in...' : 'Login'}
+          <Button type="submit" className="w-full" disabled={isDisabled}>
+            {isDisabled ? 'Logging in...' : 'Login'}
           </Button>
         </form>
         {isCaregiver && (

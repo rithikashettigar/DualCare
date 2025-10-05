@@ -16,8 +16,8 @@ import { Suspense, useState, useEffect } from 'react';
 import type React from 'react';
 import { useAuth, useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 function SignupForm() {
   const router = useRouter();
@@ -28,6 +28,7 @@ function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -35,7 +36,7 @@ function SignupForm() {
     }
   }, [user, isUserLoading, router]);
 
-  const handleSignup = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!auth) {
       toast({
@@ -53,8 +54,23 @@ function SignupForm() {
       });
       return;
     }
-    initiateEmailSignUp(auth, email, password);
+    setIsLoading(true);
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      // The useEffect will handle the redirect on successful creation and sign-in
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Signup Failed',
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const isDisabled = isLoading || isUserLoading;
 
   return (
     <Card className="mx-auto max-w-sm w-full">
@@ -75,6 +91,7 @@ function SignupForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={isDisabled}
             />
           </div>
           <div className="grid gap-2">
@@ -85,6 +102,7 @@ function SignupForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isDisabled}
             />
           </div>
            <div className="grid gap-2">
@@ -95,10 +113,11 @@ function SignupForm() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={isDisabled}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isUserLoading}>
-            {isUserLoading ? 'Creating Account...' : 'Create Account'}
+          <Button type="submit" className="w-full" disabled={isDisabled}>
+            {isDisabled ? 'Creating Account...' : 'Create Account'}
           </Button>
         </form>
         <div className="mt-4 text-center text-sm">
