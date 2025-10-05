@@ -1,0 +1,434 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the DualCare system, whether a caregiver or an end-user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "userType": {
+          "type": "string",
+          "description": "The type of user, either 'caregiver' or 'endUser'."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "language": {
+          "type": "string",
+          "description": "The user's preferred language (e.g., 'en', 'hi', 'kn')."
+        }
+      },
+      "required": [
+        "id",
+        "userType",
+        "name",
+        "email",
+        "language"
+      ]
+    },
+    "Medicine": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Medicine",
+      "type": "object",
+      "description": "Represents a prescribed medicine for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the medicine entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Medicine). The user who is prescribed the medicine."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the medicine."
+        },
+        "dosage": {
+          "type": "string",
+          "description": "The dosage of the medicine."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time the medicine should be taken."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "dosage",
+        "time"
+      ]
+    },
+    "Task": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Task",
+      "type": "object",
+      "description": "Represents a daily task or routine for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the task entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Task). The user for whom the task is assigned."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the task."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time the task should be performed."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "description",
+        "time"
+      ]
+    },
+    "MedicineLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicineLog",
+      "type": "object",
+      "description": "Represents a log of when a user takes their medicine.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the medicine log entry."
+        },
+        "medicineId": {
+          "type": "string",
+          "description": "Reference to Medicine. (Relationship: Medicine 1:N MedicineLog). The medicine associated with this log entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N MedicineLog). The user who took the medicine."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the medicine was taken.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the medicine intake (e.g., 'taken', 'missed')."
+        }
+      },
+      "required": [
+        "id",
+        "medicineId",
+        "userId",
+        "timestamp",
+        "status"
+      ]
+    },
+    "TaskLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TaskLog",
+      "type": "object",
+      "description": "Represents a log of when a user completes a task.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the task log entry."
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Reference to Task. (Relationship: Task 1:N TaskLog). The task associated with this log entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N TaskLog). The user who completed the task."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the task was completed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "userId",
+        "timestamp"
+      ]
+    },
+    "SOSAlert": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SOSAlert",
+      "type": "object",
+      "description": "Represents an SOS alert triggered by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SOS alert."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. The user who triggered the SOS alert."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the SOS alert was triggered.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the SOS alert (e.g., 'active', 'handled')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "timestamp",
+        "status"
+      ]
+    },
+    "MoodLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MoodLog",
+      "type": "object",
+      "description": "Represents a mood log entry from a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the mood log entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. The user who logged their mood."
+        },
+        "mood": {
+          "type": "string",
+          "description": "The mood logged by the user (e.g., 'happy', 'neutral', 'sad', 'angry')."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the mood was logged.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "mood",
+        "timestamp"
+      ]
+    },
+    "MedicalRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MedicalRecord",
+      "type": "object",
+      "description": "Represents a medical document or report associated with a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the medical record."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. The user associated with this medical record."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The name of the file."
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL of the medical record stored in Firebase Storage.",
+          "format": "uri"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the medical record was uploaded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "fileName",
+        "fileUrl",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. The root of all user-specific data, ensuring clear ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/medicines/{medicineId}",
+        "definition": {
+          "entityName": "Medicine",
+          "schema": {
+            "$ref": "#/backend/entities/Medicine"
+          },
+          "description": "Stores medicine schedules for each user. The userId is embedded to maintain the user context and ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "medicineId",
+              "description": "The unique identifier for the medicine."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/tasks/{taskId}",
+        "definition": {
+          "entityName": "Task",
+          "schema": {
+            "$ref": "#/backend/entities/Task"
+          },
+          "description": "Stores daily tasks for each user, with the userId for ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "taskId",
+              "description": "The unique identifier for the task."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/medicineLogs/{medicineLogId}",
+        "definition": {
+          "entityName": "MedicineLog",
+          "schema": {
+            "$ref": "#/backend/entities/MedicineLog"
+          },
+          "description": "Stores logs of medicine intake. The userId ensures logs are tied to the correct user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "medicineLogId",
+              "description": "The unique identifier for the medicine log."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/taskLogs/{taskLogId}",
+        "definition": {
+          "entityName": "TaskLog",
+          "schema": {
+            "$ref": "#/backend/entities/TaskLog"
+          },
+          "description": "Stores logs of task completion. The userId ensures that logs are tied to the correct user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "taskLogId",
+              "description": "The unique identifier for the task log."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/sosAlerts/{alertId}",
+        "definition": {
+          "entityName": "SOSAlert",
+          "schema": {
+            "$ref": "#/backend/entities/SOSAlert"
+          },
+          "description": "Stores SOS alerts. Includes the userId of the user who triggered the alert, which is required for caregivers to identify the source.",
+          "params": [
+            {
+              "name": "alertId",
+              "description": "The unique identifier for the SOS alert."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/moodLogs/{moodLogId}",
+        "definition": {
+          "entityName": "MoodLog",
+          "schema": {
+            "$ref": "#/backend/entities/MoodLog"
+          },
+          "description": "Stores mood logs for each user. The userId ensures each log is tied to the correct user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "moodLogId",
+              "description": "The unique identifier for the mood log."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/medicalRecords/{medicalRecordId}",
+        "definition": {
+          "entityName": "MedicalRecord",
+          "schema": {
+            "$ref": "#/backend/entities/MedicalRecord"
+          },
+          "description": "Stores medical records for each user. The userId ensures each record is tied to the correct user and read access can be granted only to the specific user and their caregiver.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "medicalRecordId",
+              "description": "The unique identifier for the medical record."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability for the DualCare application.  The core principle is to avoid using `get()` calls in security rules by denormalizing authorization data, enabling atomic operations and simplifying debugging.  Structural segregation is employed to maintain a homogeneous security posture within collections.  Path-based ownership is prioritized for private user data. Collaborative data is managed using membership maps where applicable.\n\n*   **/users/{userId}**: Stores user profiles.  This is the root of all user-specific data, ensuring clear ownership.\n*   **/users/{userId}/medicines/{medicineId}**: Stores medicine schedules for each user. The `userId` is embedded to maintain the user context and ownership. No denormalization needed as the path enforces ownership.\n*   **/users/{userId}/tasks/{taskId}**: Stores daily tasks for each user, with the `userId` for ownership. No denormalization needed.\n*   **/users/{userId}/medicineLogs/{medicineLogId}**: Stores logs of medicine intake. The `userId` ensures logs are tied to the correct user. No denormalization needed.\n*   **/users/{userId}/taskLogs/{taskLogId}**: Stores logs of task completion. The `userId` ensures that logs are tied to the correct user.  No denormalization needed.\n*   **/sosAlerts/{alertId}**: Stores SOS alerts. Includes the `userId` of the user who triggered the alert, which is required for caregivers to identify the source. No authorization denormalization is needed because all caregivers need to be able to see all alerts; the caregiver app is responsible for filtering what is displayed.\n*   **/users/{userId}/moodLogs/{moodLogId}**: Stores mood logs for each user. The `userId` ensures each log is tied to the correct user. No denormalization needed.\n*   **/users/{userId}/medicalRecords/{medicalRecordId}**: Stores medical records for each user. The `userId` ensures each record is tied to the correct user and read access can be granted only to the specific user and their caregiver. No denormalization needed.\n\nThis structure enables the following QAPs (Rules are not Filters):\n\n*   **Secure `list` operations:** Because all data is organized under user-specific paths (e.g., `/users/{userId}/medicines/{medicineId}`), listing medicines, tasks, or logs is secure.  Security rules can simply check `request.auth.uid == userId` to ensure that only the correct user can access their own data.  For SOS alerts, listing is done at the root collection, but the application logic is responsible for filtering the alerts relevant to a caregiver, ensuring the security rules themselves do not act as filters.\n*   **Authorization Independence:** The structure avoids `get()` calls in security rules by embedding the `userId` in subcollections.  This ensures that creating a medicine or task, or logging an action, can be done atomically without needing to verify parent document attributes.\n*   **Invariants:** The structure naturally supports invariants such as ownership. Timestamps are enforced within the data models and can be validated in security rules using `request.time`."
+  }
+}

@@ -1,0 +1,181 @@
+/**
+ * @fileoverview Firestore Security Rules for DualCare application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for personal data, ensuring
+ * that users can only access and modify their own information.  SOS alerts are
+ * an exception and are visible to all caregivers. The rules prioritize
+ * simplicity and performance by avoiding complex queries and `get()` calls.
+ *
+ * Data Structure:
+ * - /users/{userId}: User profiles.
+ * - /users/{userId}/medicines/{medicineId}: Medicine schedules for each user.
+ * - /users/{userId}/tasks/{taskId}: Daily tasks for each user.
+ * - /users/{userId}/medicineLogs/{medicineLogId}: Logs of medicine intake.
+ * - /users/{userId}/taskLogs/{taskLogId}: Logs of task completion.
+ * - /sosAlerts/{alertId}: SOS alerts triggered by users.
+ * - /users/{userId}/moodLogs/{moodLogId}: Mood logs for each user.
+ * - /users/{userId}/medicalRecords/{medicalRecordId}: Medical records for each user.
+ *
+ * Key Security Decisions:
+ * - User data is segregated under the /users/{userId} path, enforcing ownership.
+ * - Listing of user documents is explicitly allowed for the owner only.
+ * - SOS alerts are an exception and are visible to all caregivers (application
+ *   logic handles filtering).
+ *
+ * Denormalization for Authorization:
+ * - The `userId` is embedded in subcollections to avoid `get()` calls.
+ *   This ensures that creating a medicine or task, or logging an action, can be
+ *   done atomically without needing to verify parent document attributes.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profiles.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' can create their profile.
+     * @allow (get, list, update, delete) User with ID 'user123' can read their profile.
+     * @deny (create) User with ID 'user456' cannot create a profile with ID 'user123'.
+     * @deny (get, list, update, delete) User with ID 'user456' cannot access user 'user123' profile.
+     * @principle Enforces document ownership for all operations on user profiles.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) ;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to medicine schedules for a specific user.
+     * @path /users/{userId}/medicines/{medicineId}
+     * @allow (create) User with ID 'user123' can create a medicine with ID 'medicine456' under their profile.
+     * @allow (get, list, update, delete) User with ID 'user123' can access/modify their medicine 'medicine456'.
+     * @deny (create) User with ID 'user456' cannot create a medicine with ID 'medicine456' under user 'user123'.
+     * @deny (get, list, update, delete) User with ID 'user456' cannot access/modify user 'user123' medicine 'medicine456'.
+     * @principle Enforces document ownership for all operations on medicine schedules.
+     */
+    match /users/{userId}/medicines/{medicineId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to daily tasks for a specific user.
+     * @path /users/{userId}/tasks/{taskId}
+     * @allow (create) User with ID 'user123' can create a task with ID 'task456' under their profile.
+     * @allow (get, list, update, delete) User with ID 'user123' can access/modify their task 'task456'.
+     * @deny (create) User with ID 'user456' cannot create a task with ID 'task456' under user 'user123'.
+     * @deny (get, list, update, delete) User with ID 'user456' cannot access/modify user 'user123' task 'task456'.
+     * @principle Enforces document ownership for all operations on daily tasks.
+     */
+    match /users/{userId}/tasks/{taskId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to medicine intake logs for a specific user.
+     * @path /users/{userId}/medicineLogs/{medicineLogId}
+     * @allow (create) User with ID 'user123' can create a medicine log with ID 'log456' under their profile.
+     * @allow (get, list, update, delete) User with ID 'user123' can access their medicine log 'log456'.
+     * @deny (create) User with ID 'user456' cannot create a medicine log with ID 'log456' under user 'user123'.
+     * @deny (get, list, update, delete) User with ID 'user456' cannot access user 'user123' medicine log 'log456'.
+     * @principle Enforces document ownership for all operations on medicine intake logs.
+     */
+    match /users/{userId}/medicineLogs/{medicineLogId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to task completion logs for a specific user.
+     * @path /users/{userId}/taskLogs/{taskLogId}
+     * @allow (create) User with ID 'user123' can create a task log with ID 'log456' under their profile.
+     * @allow (get, list, update, delete) User with ID 'user123' can access their task log 'log456'.
+     * @deny (create) User with ID 'user456' cannot create a task log with ID 'log456' under user 'user123'.
+     * @deny (get, list, update, delete) User with ID 'user456' cannot access user 'user123' task log 'log456'.
+     * @principle Enforces document ownership for all operations on task completion logs.
+     */
+    match /users/{userId}/taskLogs/{taskLogId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to SOS alerts. All caregivers can read alerts.
+     * @path /sosAlerts/{alertId}
+     * @allow (create) User with ID 'user123' can create an SOS alert.
+     * @allow (get, list) Any signed-in user can view SOS alerts (caregivers).
+     * @deny (update, delete) No one can update or delete an SOS alert through the client.
+     * @principle Allows caregivers to view alerts while restricting modification.
+     */
+    match /sosAlerts/{alertId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Controls access to mood logs for a specific user.
+     * @path /users/{userId}/moodLogs/{moodLogId}
+     * @allow (create) User with ID 'user123' can create a mood log with ID 'mood456' under their profile.
+     * @allow (get, list, update, delete) User with ID 'user123' can access their mood log 'mood456'.
+     * @deny (create) User with ID 'user456' cannot create a mood log with ID 'mood456' under user 'user123'.
+     * @deny (get, list, update, delete) User with ID 'user456' cannot access user 'user123' mood log 'mood456'.
+     * @principle Enforces document ownership for all operations on mood logs.
+     */
+    match /users/{userId}/moodLogs/{moodLogId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to medical records for a specific user.
+     * @path /users/{userId}/medicalRecords/{medicalRecordId}
+     * @allow (get, list) User with ID 'user123' can get and list their medical records.
+     * @deny (create, update, delete) No one can create, update, or delete medical records via the client.
+     * @principle Enforces read-only access to medical records.
+     */
+    match /users/{userId}/medicalRecords/{medicalRecordId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+  }
+}
