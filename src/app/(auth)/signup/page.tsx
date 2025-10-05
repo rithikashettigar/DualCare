@@ -1,6 +1,5 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,62 +15,57 @@ import { Logo } from '@/components/logo';
 import { Suspense, useState, useEffect } from 'react';
 import type React from 'react';
 import { useAuth, useUser } from '@/firebase';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
+import { useRouter } from 'next/navigation';
+import { initiateEmailSignUp } from '@/firebase/non-blocking-login';
 import { useToast } from '@/hooks/use-toast';
 
-function LoginForm() {
+function SignupForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  const role = searchParams.get('role') || 'user';
-  const isCaregiver = role === 'caregiver';
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      const loginPath = isCaregiver ? '/caregiver' : '/user';
-      router.push(loginPath);
+      router.push('/caregiver');
     }
-  }, [user, isUserLoading, router, isCaregiver]);
+  }, [user, isUserLoading, router]);
 
-  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignup = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!auth) {
       toast({
         variant: 'destructive',
-        title: 'Login Failed',
+        title: 'Signup Failed',
         description: 'Firebase is not available. Please try again later.',
       });
       return;
     }
-    if (!email || !password) {
+    if (password !== confirmPassword) {
       toast({
         variant: 'destructive',
-        title: 'Login Failed',
-        description: 'Please enter both email and password.',
+        title: 'Signup Failed',
+        description: 'Passwords do not match.',
       });
       return;
     }
-    initiateEmailSignIn(auth, email, password);
+    initiateEmailSignUp(auth, email, password);
   };
 
   return (
     <Card className="mx-auto max-w-sm w-full">
       <CardHeader>
-        <CardTitle className="text-2xl font-headline">
-          {isCaregiver ? 'Caregiver Login' : 'User Login'}
-        </CardTitle>
+        <CardTitle className="text-2xl font-headline">Caregiver Sign Up</CardTitle>
         <CardDescription>
-          Enter your credentials to access your portal.
+          Create your account to start managing care.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleLogin} className="grid gap-4">
+        <form onSubmit={handleSignup} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -84,15 +78,7 @@ function LoginForm() {
             />
           </div>
           <div className="grid gap-2">
-            <div className="flex items-center">
-              <Label htmlFor="password">Password</Label>
-              <Link
-                href="#"
-                className="ml-auto inline-block text-sm underline"
-              >
-                Forgot your password?
-              </Link>
-            </div>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -101,21 +87,24 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+           <div className="grid gap-2">
+            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
           <Button type="submit" className="w-full" disabled={isUserLoading}>
-            {isUserLoading ? 'Logging in...' : 'Login'}
+            {isUserLoading ? 'Creating Account...' : 'Create Account'}
           </Button>
         </form>
-        {isCaregiver && (
-          <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="underline">
-              Sign up
-            </Link>
-          </div>
-        )}
         <div className="mt-4 text-center text-sm">
-          <Link href="/" className="underline">
-            Back to Home
+          Already have an account?{' '}
+          <Link href="/login?role=caregiver" className="underline">
+            Login
           </Link>
         </div>
       </CardContent>
@@ -123,12 +112,12 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="flex flex-col items-center gap-8">
       <Logo />
       <Suspense fallback={<div>Loading...</div>}>
-        <LoginForm />
+        <SignupForm />
       </Suspense>
     </div>
   );
