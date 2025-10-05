@@ -13,19 +13,43 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/logo';
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import type React from 'react';
+import { useAuth, useUser } from '@/firebase/provider';
+import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
+import { useToast } from '@/hooks/use-toast';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   const role = searchParams.get('role') || 'user';
   const isCaregiver = role === 'caregiver';
 
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      const loginPath = isCaregiver ? '/caregiver' : '/user';
+      router.push(loginPath);
+    }
+  }, [user, isUserLoading, router, isCaregiver]);
+
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const loginPath = isCaregiver ? '/caregiver' : '/user';
-    router.push(loginPath);
+    if (!email || !password) {
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: 'Please enter both email and password.',
+      });
+      return;
+    }
+    initiateEmailSignIn(auth, email, password);
   };
 
   return (
@@ -47,6 +71,8 @@ function LoginForm() {
               type="email"
               placeholder="m@example.com"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="grid gap-2">
@@ -59,10 +85,16 @@ function LoginForm() {
                 Forgot your password?
               </Link>
             </div>
-            <Input id="password" type="password" required />
+            <Input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
-          <Button type="submit" className="w-full">
-            Login
+          <Button type="submit" className="w-full" disabled={isUserLoading}>
+            {isUserLoading ? 'Logging in...' : 'Login'}
           </Button>
         </form>
         {isCaregiver && (

@@ -1,3 +1,4 @@
+'use client';
 import {
   SidebarProvider,
   Sidebar,
@@ -22,12 +23,32 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function CaregiverLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login?role=caregiver');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen">
@@ -96,15 +117,19 @@ export default function CaregiverLayout({
             <div className="flex items-center gap-3 p-3 border-t">
               <Avatar>
                 <AvatarImage
-                  src="https://i.pravatar.cc/150?u=a042581f4e29026024d"
+                  src={user.photoURL ?? "https://i.pravatar.cc/150?u=a042581f4e29026024d"}
                   alt="Caregiver"
                 />
-                <AvatarFallback>CG</AvatarFallback>
+                <AvatarFallback>
+                  {user.email?.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold">Jane Doe</span>
+                <span className="text-sm font-semibold">
+                  {user.displayName ?? 'Jane Doe'}
+                </span>
                 <span className="text-xs text-muted-foreground">
-                  care@dual.care
+                  {user.email}
                 </span>
               </div>
             </div>
