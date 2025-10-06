@@ -8,6 +8,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+import {
   Card,
   CardHeader,
   CardTitle,
@@ -105,12 +116,15 @@ const initialTasks: Task[] = [
 
 const users = ['John Doe', 'Jane Smith', 'Robert Brown'];
 
-type ScheduleItem = Partial<Medicine & Task>;
+type ScheduleItem = Partial<Medicine & Task & { type?: 'medicine' | 'task' }>;
 
 export default function SchedulesPage() {
   const [activeTab, setActiveTab] = useState('medicine');
-  const [isDialogOpen, setDialogOpen] = useState(false);
+  const [isFormDialogOpen, setFormDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<ScheduleItem | null>(null);
+
 
   const [medicines, setMedicines] = useState<Medicine[]>(initialMedicines);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -138,12 +152,17 @@ export default function SchedulesPage() {
 
   const openAddDialog = () => {
     setEditingItem(null);
-    setDialogOpen(true);
+    setFormDialogOpen(true);
   };
 
   const openEditDialog = (item: ScheduleItem, type: 'medicine' | 'task') => {
     setEditingItem({ ...item, type });
-    setDialogOpen(true);
+    setFormDialogOpen(true);
+  };
+  
+  const openDeleteDialog = (item: ScheduleItem, type: 'medicine' | 'task') => {
+    setItemToDelete({ ...item, type });
+    setDeleteDialogOpen(true);
   };
   
   const handleSave = () => {
@@ -188,13 +207,28 @@ export default function SchedulesPage() {
       }
     }
 
-    setDialogOpen(false);
+    setFormDialogOpen(false);
   };
+
+  const handleDelete = () => {
+    if (!itemToDelete) return;
+
+    if (itemToDelete.type === 'medicine') {
+      setMedicines(medicines.filter((m) => m.id !== itemToDelete.id));
+    } else {
+      setTasks(tasks.filter((t) => t.id !== itemToDelete.id));
+    }
+
+    setDeleteDialogOpen(false);
+    setItemToDelete(null);
+  };
+
 
   const isFormValid = selectedUser && nameOrDesc && time && (activeTab === 'tasks' || dosage);
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
+    <>
+    <Dialog open={isFormDialogOpen} onOpenChange={setFormDialogOpen}>
       <Tabs defaultValue="medicine" onValueChange={setActiveTab}>
         <div className="flex items-center justify-between">
           <TabsList>
@@ -254,7 +288,12 @@ export default function SchedulesPage() {
                             >
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openDeleteDialog(med, 'medicine')}
+                              className="text-destructive"
+                            >
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -311,7 +350,12 @@ export default function SchedulesPage() {
                             >
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openDeleteDialog(task, 'task')}
+                              className="text-destructive"
+                            >
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -401,7 +445,7 @@ export default function SchedulesPage() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setDialogOpen(false)}
+            onClick={() => setFormDialogOpen(false)}
           >
             Cancel
           </Button>
@@ -411,5 +455,23 @@ export default function SchedulesPage() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this
+              schedule item.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
