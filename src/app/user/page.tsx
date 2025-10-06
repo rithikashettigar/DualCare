@@ -2,27 +2,44 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Pill, Check, Zap, Apple, Bed, User } from 'lucide-react';
+import { Pill, Check, Zap, Smile, Meh, Frown, CheckCircle2, Circle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { Progress } from '@/components/ui/progress';
+import { useState, useEffect, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 
-const initialMedicines = [
-  { time: '08:00 AM', name: 'Heart Medication', dosage: '1 pill', taken: false },
-  { time: '01:00 PM', name: 'Vitamin D', dosage: '2 pills', taken: true },
-  { time: '09:00 PM', name: 'Sleep Aid', dosage: '1 pill', taken: false },
+type ScheduleItem = {
+  time: string;
+  name: string;
+  type: 'medicine' | 'task';
+  icon: React.ElementType;
+  details: string;
+  completed: boolean;
+};
+
+const initialSchedule: Omit<ScheduleItem, 'completed'>[] = [
+  { time: '07:00', name: 'Morning Walk', type: 'task', icon: Zap, details: '30 minutes' },
+  { time: '08:00', name: 'Lisinopril', type: 'medicine', icon: Pill, details: '10mg' },
+  { time: '08:00', name: 'Aspirin', type: 'medicine', icon: Pill, details: '81mg' },
+  { time: '09:00', name: 'Breakfast', type: 'task', icon: Zap, details: 'High-fiber' },
+  { time: '13:00', name: 'Metformin', type: 'medicine', icon: Pill, details: '500mg' },
+  { time: '14:00', name: 'Afternoon Rest', type: 'task', icon: Zap, details: '1 hour' },
+  { time: '21:00', name: 'Sleep Aid', type: 'medicine', icon: Pill, details: '1 pill' },
 ];
 
-const initialTasks = [
-  { icon: Apple, name: 'Breakfast', done: true },
-  { icon: Zap, name: 'Morning Exercise', done: false },
-  { icon: Bed, name: 'Afternoon Rest', done: false },
-];
+const getSortedSchedule = () => 
+  initialSchedule
+    .map(item => ({...item, completed: Math.random() > 0.5})) // Randomly mark some as completed for demo
+    .sort((a, b) => a.time.localeCompare(b.time));
+
 
 export default function UserHomePage() {
   const [greeting, setGreeting] = useState('Good Day');
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
 
   useEffect(() => {
+    // This runs only on the client to avoid hydration errors
     const now = new Date();
     const currentHour = now.getHours();
     if (currentHour < 12) {
@@ -32,24 +49,20 @@ export default function UserHomePage() {
     } else {
       setGreeting('Good Evening');
     }
+    setSchedule(getSortedSchedule());
   }, []);
   
-  // States to manage interactions. In a real app, this would come from a data store.
-  const [medicines, setMedicines] = useState(initialMedicines);
-  const [tasks, setTasks] = useState(initialTasks);
-
-  const handleTakeMedicine = (index: number) => {
-    const newMedicines = [...medicines];
-    newMedicines[index].taken = true;
-    setMedicines(newMedicines);
+  const handleToggleComplete = (index: number) => {
+    const newSchedule = [...schedule];
+    newSchedule[index].completed = !newSchedule[index].completed;
+    setSchedule(newSchedule);
   }
 
-  const handleDoTask = (index: number) => {
-    const newTasks = [...tasks];
-    newTasks[index].done = true;
-    setTasks(newTasks);
-  }
-
+  const progress = useMemo(() => {
+    if (schedule.length === 0) return 0;
+    const completedCount = schedule.filter(item => item.completed).length;
+    return (completedCount / schedule.length) * 100;
+  }, [schedule]);
 
   return (
     <div className="space-y-8 pb-24">
@@ -58,91 +71,81 @@ export default function UserHomePage() {
           {greeting}, John!
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground">
-          Here is your schedule for today.
+          How are you feeling today?
         </p>
+         <div className="flex justify-center gap-4 pt-4">
+            <Button
+              variant={selectedMood === 'Happy' ? 'default' : 'outline'}
+              size="lg"
+              className="rounded-full h-20 w-20 flex-col gap-1"
+              onClick={() => setSelectedMood('Happy')}
+            >
+              <Smile className="h-8 w-8" />
+              <span>Happy</span>
+            </Button>
+            <Button
+              variant={selectedMood === 'Neutral' ? 'default' : 'outline'}
+              size="lg"
+              className="rounded-full h-20 w-20 flex-col gap-1"
+              onClick={() => setSelectedMood('Neutral')}
+            >
+              <Meh className="h-8 w-8" />
+              <span>Neutral</span>
+            </Button>
+            <Button
+              variant={selectedMood === 'Sad' ? 'default' : 'outline'}
+              size="lg"
+              className="rounded-full h-20 w-20 flex-col gap-1"
+              onClick={() => setSelectedMood('Sad')}
+            >
+              <Frown className="h-8 w-8" />
+              <span>Sad</span>
+            </Button>
+          </div>
       </header>
 
-      <section>
-        <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
-          <Pill className="text-primary" /> Your Medicines
-        </h2>
-        <div className="space-y-4">
-          {medicines.map((med, index) => (
-            <Card
-              key={index}
-              className={`transition-all ${
-                med.taken ? 'bg-secondary/50' : 'bg-card'
-              }`}
-            >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="text-center w-24">
-                  <p className="text-xl font-bold font-headline">
-                    {med.time.split(' ')[0]}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {med.time.split(' ')[1]}
-                  </p>
-                </div>
-                <Separator orientation="vertical" className="h-16" />
-                <div className="flex-1">
-                  <p className="text-xl font-semibold">{med.name}</p>
-                  <p className="text-muted-foreground">{med.dosage}</p>
-                </div>
-                <Button
-                  size="lg"
-                  className="h-20 w-32 text-xl shrink-0"
-                  disabled={med.taken}
-                  variant={med.taken ? 'outline' : 'default'}
-                  style={{ minHeight: '44px', minWidth: '44px' }}
-                  aria-label={`Mark ${med.name} as taken`}
-                  onClick={() => handleTakeMedicine(index)}
-                >
-                  {med.taken ? <Check className="h-8 w-8" /> : 'Take'}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+      <Separator />
 
       <section>
-        <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
-          <Zap className="text-primary" /> Daily Routine
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tasks.map((task, index) => (
+        <div className="mb-6 space-y-2">
+            <h2 className="text-2xl font-bold font-headline">
+                Today's Schedule
+            </h2>
+            <div className='flex items-center gap-2'>
+                <Progress value={progress} className="w-full h-3" />
+                <span className='text-sm font-medium text-muted-foreground'>{Math.round(progress)}%</span>
+            </div>
+            
+        </div>
+        <div className="space-y-4">
+          {schedule.map((item, index) => (
             <Card
               key={index}
-              className={`transition-all ${
-                task.done ? 'bg-secondary/50' : 'bg-card'
-              }`}
+              className={cn('transition-all', item.completed ? 'bg-secondary/50' : 'bg-card')}
+              onClick={() => handleToggleComplete(index)}
             >
-              <CardContent className="p-4 flex flex-col items-center justify-center gap-4 h-56">
-                <task.icon className="h-16 w-16 text-muted-foreground" />
-                <p className="text-xl font-semibold text-center">{task.name}</p>
-                <Button
-                  size="lg"
-                  className="h-14 w-full text-lg"
-                  disabled={task.done}
-                  variant={task.done ? 'outline' : 'default'}
-                  style={{ minHeight: '44px' }}
-                  aria-label={`Mark ${task.name} as done`}
-                  onClick={() => handleDoTask(index)}
-                >
-                  {task.done ? <Check className="h-6 w-6" /> : 'Done'}
-                </Button>
+              <CardContent className="p-4 flex items-center gap-4 cursor-pointer">
+                 <div className="w-12 h-12 rounded-full flex items-center justify-center bg-primary/10 text-primary">
+                  <item.icon className="h-6 w-6" />
+                </div>
+                <div className="flex-1 grid grid-cols-[1fr_auto] items-center gap-4">
+                    <div>
+                        <p className="text-xl font-semibold">{item.name}</p>
+                        <p className="text-muted-foreground">{item.details} &bull; {item.time}</p>
+                    </div>
+                    <div className='flex items-center gap-2 text-lg font-semibold'>
+                        {item.completed ? (
+                            <CheckCircle2 className="h-8 w-8 text-green-500" />
+                        ) : (
+                            <Circle className="h-8 w-8 text-muted-foreground/50" />
+                        )}
+                    </div>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       </section>
-      <footer className="text-center pt-8">
-        <Button variant="ghost" asChild>
-          <Link href="/">
-            <User className="mr-2 h-4 w-4" /> Switch Account / Logout
-          </Link>
-        </Button>
-      </footer>
     </div>
   );
 }

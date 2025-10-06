@@ -1,11 +1,10 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import { PhoneOutgoing } from 'lucide-react';
+import { PhoneOutgoing, User } from 'lucide-react';
 import { useUser, useAuth } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { signOut } from 'firebase/auth';
-import Link from 'next/link';
 
 export default function UserLayout({
   children,
@@ -38,8 +37,9 @@ export default function UserLayout({
   }
   return (
     <div className="min-h-screen bg-background text-foreground relative">
-      <header className="absolute top-4 right-4">
+      <header className="absolute top-4 right-4 z-50">
         <Button variant="ghost" onClick={handleLogout}>
+          <User className="mr-2 h-4 w-4" />
           Logout
         </Button>
       </header>
