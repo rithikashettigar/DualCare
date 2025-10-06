@@ -48,16 +48,14 @@ import { MoreHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-
-// Simplified User type for local state
-type UserDisplay = {
-  id: string;
-  name: string;
-  email: string;
-  initials: string;
-  status: 'Active' | 'Inactive';
-  lastActivity: string;
-};
+import {
+  useFirestore,
+  useCollection,
+  WithId,
+  useMemoFirebase,
+} from '@/firebase';
+import { collection } from 'firebase/firestore';
+import { User, addUser, updateUser, deleteUser } from '@/lib/firestore';
 
 const generateInitials = (name: string) =>
   name
@@ -66,62 +64,35 @@ const generateInitials = (name: string) =>
     .join('')
     .toUpperCase() || '';
 
-const initialUsers: UserDisplay[] = [
-    {
-        id: 'user1',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        initials: 'JD',
-        status: 'Active',
-        lastActivity: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    },
-    {
-        id: 'user2',
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com',
-        initials: 'JS',
-        status: 'Active',
-        lastActivity: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    },
-    {
-        id: 'user3',
-        name: 'Robert Brown',
-        email: 'robert.brown@example.com',
-        initials: 'RB',
-        status: 'Inactive',
-        lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    },
-];
-
-
 export default function UsersPage() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<UserDisplay[]>(initialUsers);
-  const [isUsersLoading, setIsUsersLoading] = useState(true);
+  const firestore = useFirestore();
+
+  const usersQuery = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'users') : null),
+    [firestore]
+  );
+  const { data: users, isLoading: isUsersLoading } = useCollection<User>(
+    usersQuery
+  );
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserDisplay | null>(null);
-  const [userToDelete, setUserToDelete] = useState<UserDisplay | null>(null);
+  const [editingUser, setEditingUser] = useState<WithId<User> | null>(null);
+  const [userToDelete, setUserToDelete] = useState<WithId<User> | null>(null);
 
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => setIsUsersLoading(false), 500);
-  }, []);
-
-
-  useEffect(() => {
     if (isFormDialogOpen) {
-        if (editingUser) {
-          setName(editingUser.name);
-          setEmail(editingUser.email);
-        } else {
-          resetForm();
-        }
+      if (editingUser) {
+        setName(editingUser.name);
+        setEmail(editingUser.email);
+      } else {
+        resetForm();
+      }
     }
   }, [isFormDialogOpen, editingUser]);
 
@@ -137,41 +108,42 @@ export default function UsersPage() {
     setFormDialogOpen(true);
   };
 
-  const handleOpenEditDialog = (user: UserDisplay) => {
+  const handleOpenEditDialog = (user: WithId<User>) => {
     setEditingUser(user);
     setFormDialogOpen(true);
   };
 
-  const handleOpenDeleteDialog = (user: UserDisplay) => {
+  const handleOpenDeleteDialog = (user: WithId<User>) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
   };
 
   const handleSaveUser = () => {
     if (!isFormValid) {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid Form',
-            description: 'Please fill in both name and email.',
-        });
-        return;
-    };
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Form',
+        description: 'Please fill in both name and email.',
+      });
+      return;
+    }
+    if (!firestore) return;
 
     if (editingUser) {
       // Update user
-      setUsers(users.map(u => u.id === editingUser.id ? {...u, name, email} : u));
+      updateUser(firestore, editingUser.id, { name, email });
       toast({ title: 'User updated successfully!' });
     } else {
       // Add new user
-      const newUser: UserDisplay = {
-        id: `user-${Date.now()}`,
+      const newUser: Omit<User, 'id'> = {
         name,
         email,
-        initials: generateInitials(name),
         status: 'Active',
         lastActivity: new Date().toISOString(),
+        userType: 'endUser',
+        language: 'en',
       };
-      setUsers([newUser, ...users]);
+      addUser(firestore, newUser);
       toast({ title: 'User added successfully!' });
     }
 
@@ -180,8 +152,8 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = () => {
-    if (!userToDelete) return;
-    setUsers(users.filter(u => u.id !== userToDelete.id));
+    if (!userToDelete || !firestore) return;
+    deleteUser(firestore, userToDelete.id);
     toast({
       title: 'User removed.',
       description: `${userToDelete.name} has been removed.`,
@@ -191,6 +163,13 @@ export default function UsersPage() {
   };
 
   const isFormValid = name && email;
+
+  const displayedUsers = useMemo(() => {
+    return (users || []).map((user) => ({
+      ...user,
+      initials: generateInitials(user.name),
+    }));
+  }, [users]);
 
   return (
     <>
@@ -223,14 +202,14 @@ export default function UsersPage() {
                       Loading users...
                     </TableCell>
                   </TableRow>
-                ) : users.length === 0 ? (
+                ) : displayedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center">
                       No users found. Add one to get started.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users.map((user) => (
+                  displayedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-4">
@@ -302,10 +281,13 @@ export default function UsersPage() {
           </CardFooter>
         </Card>
       </div>
-      <Dialog open={isFormDialogOpen} onOpenChange={(isOpen) => {
-        if (!isOpen) resetForm();
-        setFormDialogOpen(isOpen);
-      }}>
+      <Dialog
+        open={isFormDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) resetForm();
+          setFormDialogOpen(isOpen);
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
@@ -375,7 +357,9 @@ export default function UsersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setUserToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteUser}
               className="bg-destructive hover:bg-destructive/90"

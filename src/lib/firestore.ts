@@ -8,6 +8,7 @@ import {
   deleteDoc,
   Firestore,
   serverTimestamp,
+  setDoc,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import {
@@ -21,6 +22,8 @@ export type User = {
   name: string;
   email: string;
   language: string;
+  status: 'Active' | 'Inactive';
+  lastActivity: string;
 };
 
 export type Medicine = {
@@ -37,6 +40,43 @@ export type Task = {
   description: string;
   time: string;
 };
+
+// User Functions
+export const addUser = (db: Firestore, user: Omit<User, 'id'>) => {
+  const userCollection = collection(db, 'users');
+  addDoc(userCollection, user).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({
+      path: userCollection.path,
+      operation: 'create',
+      requestResourceData: user,
+    } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+  });
+};
+
+export const updateUser = (db: Firestore, userId: string, data: Partial<Omit<User, 'id'>>) => {
+  const userDoc = doc(db, 'users', userId);
+  updateDoc(userDoc, data).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({
+      path: userDoc.path,
+      operation: 'update',
+      requestResourceData: data,
+    } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+  });
+};
+
+export const deleteUser = (db: Firestore, userId: string) => {
+  const userDoc = doc(db, 'users', userId);
+  deleteDoc(userDoc).catch(async (serverError) => {
+    const permissionError = new FirestorePermissionError({
+      path: userDoc.path,
+      operation: 'delete',
+    } satisfies SecurityRuleContext);
+    errorEmitter.emit('permission-error', permissionError);
+  });
+};
+
 
 // Medicine Functions
 export const addMedicine = (db: Firestore, userId: string, medicine: Omit<Medicine, 'id' | 'userId'>) => {
