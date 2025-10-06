@@ -24,6 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -36,7 +46,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MoreHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type User = {
   id: string;
@@ -76,37 +86,74 @@ const initialUsers: User[] = [
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>(initialUsers);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+  const [isFormDialogOpen, setFormDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (editingUser) {
+      setName(editingUser.name);
+      setEmail(editingUser.email);
+    } else {
+      resetForm();
+    }
+  }, [editingUser]);
 
   const resetForm = () => {
     setName('');
     setEmail('');
   };
 
-  const handleOpenDialog = () => {
+  const handleOpenAddDialog = () => {
+    setEditingUser(null);
     resetForm();
-    setIsDialogOpen(true);
+    setFormDialogOpen(true);
+  };
+  
+  const handleOpenEditDialog = (user: User) => {
+    setEditingUser(user);
+    setFormDialogOpen(true);
+  };
+  
+  const handleOpenDeleteDialog = (user: User) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
   };
 
   const handleSaveUser = () => {
     if (!name || !email) return;
 
-    const newUser: User = {
-      id: Date.now().toString(),
-      name,
-      email,
-      status: 'Active', // Default status
-      lastActivity: 'Just now',
-      initials: name.split(' ').map(n => n[0]).join('').toUpperCase()
-    };
+    if (editingUser) {
+        // Update user
+        setUsers(users.map(u => u.id === editingUser.id ? {...u, name, email, initials: name.split(' ').map(n => n[0]).join('').toUpperCase() } : u));
+    } else {
+        // Add new user
+        const newUser: User = {
+          id: Date.now().toString(),
+          name,
+          email,
+          status: 'Active', // Default status
+          lastActivity: 'Just now',
+          initials: name.split(' ').map(n => n[0]).join('').toUpperCase()
+        };
+        setUsers([...users, newUser]);
+    }
 
-    setUsers([...users, newUser]);
-    setIsDialogOpen(false);
+    setFormDialogOpen(false);
+    setEditingUser(null);
   };
+
+  const handleDeleteUser = () => {
+    if (!userToDelete) return;
+    setUsers(users.filter(u => u.id !== userToDelete.id));
+    setDeleteDialogOpen(false);
+    setUserToDelete(null);
+  }
 
   const isFormValid = name && email;
 
@@ -175,9 +222,9 @@ export default function UsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View Details</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                          <DropdownMenuItem>Remove</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => alert('Viewing details for ' + user.name)}>View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenEditDialog(user)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenDeleteDialog(user)} className="text-destructive">Remove</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -187,16 +234,16 @@ export default function UsersPage() {
             </Table>
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={handleOpenDialog}>Add New User</Button>
+            <Button onClick={handleOpenAddDialog}>Add New User</Button>
           </CardFooter>
         </Card>
       </div>
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isFormDialogOpen} onOpenChange={setFormDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
             <DialogDescription>
-              Enter the details for the new user you will be caring for.
+              {editingUser ? 'Update the details for this user.' : 'Enter the details for the new user you will be caring for.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -230,7 +277,7 @@ export default function UsersPage() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setIsDialogOpen(false)}
+              onClick={() => setFormDialogOpen(false)}
             >
               Cancel
             </Button>
@@ -239,11 +286,27 @@ export default function UsersPage() {
               onClick={handleSaveUser}
               disabled={!isFormValid}
             >
-              Save User
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently remove the user and all their associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90">
+              Remove User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
