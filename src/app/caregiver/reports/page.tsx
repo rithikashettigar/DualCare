@@ -34,9 +34,10 @@ import {
   Cell,
 } from 'recharts';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Download, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 
 const users = ['John Doe', 'Jane Smith', 'Robert Brown'];
 const dateRanges = [
@@ -66,20 +67,29 @@ const moodData = [
 ];
 
 const detailedMoodLogs = [
-  { id: 1, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-20 09:00 AM', notes: 'Felt great after morning walk.' },
-  { id: 2, user: 'Jane Smith', mood: 'Happy', timestamp: '2024-05-20 10:30 AM', notes: '' },
-  { id: 3, user: 'John Doe', mood: 'Neutral', timestamp: '2024-05-19 03:15 PM', notes: 'Just a normal afternoon.' },
-  { id: 4, user: 'Robert Brown', mood: 'Sad', timestamp: '2024-05-19 08:00 PM', notes: 'Missing family.' },
-  { id: 5, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-18 11:00 AM', notes: '' },
-  { id: 6, user: 'Jane Smith', mood: 'Angry', timestamp: '2024-05-18 01:00 PM', notes: 'Frustrated with TV remote.'},
-  { id: 7, user: 'Jane Smith', mood: 'Sad', timestamp: '2024-05-20 01:00 PM', notes: 'Feeling a bit down.' },
+    { id: 1, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-20 09:00 AM', notes: 'Felt great after morning walk.' },
+    { id: 2, user: 'Jane Smith', mood: 'Happy', timestamp: '2024-05-20 10:30 AM', notes: 'Enjoyed the sunshine.' },
+    { id: 3, user: 'John Doe', mood: 'Neutral', timestamp: '2024-05-19 03:15 PM', notes: 'Just a normal afternoon.' },
+    { id: 4, user: 'Robert Brown', mood: 'Sad', timestamp: '2024-05-19 08:00 PM', notes: 'Missing family.' },
+    { id: 5, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-18 11:00 AM', notes: 'Had a nice video call with grandchildren.' },
+    { id: 6, user: 'Jane Smith', mood: 'Angry', timestamp: '2024-05-18 01:00 PM', notes: 'Frustrated with TV remote.' },
+    { id: 7, user: 'Jane Smith', mood: 'Sad', timestamp: '2024-05-20 01:00 PM', notes: 'Feeling a bit down.' },
+    { id: 8, user: 'Robert Brown', mood: 'Happy', timestamp: '2024-05-21 02:00 PM', notes: 'Visitor today.' },
+    { id: 9, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-21 09:00 AM', notes: 'Feeling rested.' },
+    { id: 10, user: 'Jane Smith', mood: 'Happy', timestamp: '2024-05-21 10:30 AM', notes: 'The garden looks beautiful.' },
+    { id: 11, user: 'John Doe', mood: 'Neutral', timestamp: '2024-05-20 03:15 PM', notes: 'Watching a movie.' },
+    { id: 12, user: 'Robert Brown', mood: 'Neutral', timestamp: '2024-05-20 08:00 PM', notes: 'Reading a book.' },
+    { id: 13, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-19 11:00 AM', notes: 'Good breakfast.' },
 ];
 
+const LOGS_PER_PAGE = 5;
 
 export default function ReportsPage() {
   const [selectedUser, setSelectedUser] = useState('all');
   const [dateRange, setDateRange] = useState('last-30-days');
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [logSearchTerm, setLogSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
@@ -91,12 +101,26 @@ export default function ReportsPage() {
       setSelectedMood(null); // Deselect if clicking the same mood again
     } else {
       setSelectedMood(mood);
+      setCurrentPage(1); // Reset to first page when mood changes
+      setLogSearchTerm(''); // Reset search term
     }
   };
 
-  const filteredLogs = detailedMoodLogs.filter(
-    (log) => log.mood === selectedMood
-  );
+  const filteredLogs = useMemo(() => {
+    if (!selectedMood) return [];
+    return detailedMoodLogs.filter(
+      (log) =>
+        log.mood === selectedMood &&
+        log.notes.toLowerCase().includes(logSearchTerm.toLowerCase())
+    );
+  }, [selectedMood, logSearchTerm]);
+
+  const paginatedLogs = useMemo(() => {
+    const startIndex = (currentPage - 1) * LOGS_PER_PAGE;
+    return filteredLogs.slice(startIndex, startIndex + LOGS_PER_PAGE);
+  }, [filteredLogs, currentPage]);
+
+  const totalPages = Math.ceil(filteredLogs.length / LOGS_PER_PAGE);
 
   return (
     <div className="space-y-6">
@@ -259,40 +283,80 @@ export default function ReportsPage() {
       {selectedMood && (
         <Card>
           <CardHeader>
-            <CardTitle>Detailed Logs for: {selectedMood}</CardTitle>
-            <CardDescription>
-              Showing all entries logged as &quot;{selectedMood}&quot;.
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Detailed Logs for: {selectedMood}</CardTitle>
+                <CardDescription>
+                  Showing all entries logged as &quot;{selectedMood}&quot;.
+                </CardDescription>
+              </div>
+              <div className="relative mt-4 sm:mt-0 sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search in notes..."
+                  className="pl-8"
+                  value={logSearchTerm}
+                  onChange={(e) => {
+                    setLogSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {filteredLogs.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-medium">{log.user}</TableCell>
-                      <TableCell>{log.timestamp}</TableCell>
-                      <TableCell>
-                        {log.notes || (
-                          <span className="text-muted-foreground">
-                            No notes
-                          </span>
-                        )}
-                      </TableCell>
+            {paginatedLogs.length > 0 ? (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Notes</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="font-medium">{log.user}</TableCell>
+                        <TableCell>{log.timestamp}</TableCell>
+                        <TableCell>
+                          {log.notes || (
+                            <span className="text-muted-foreground">
+                              No notes
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </>
             ) : (
-              <p className="text-center text-muted-foreground">
-                No detailed logs found for this mood in the selected period.
+              <p className="text-center text-muted-foreground py-8">
+                No detailed logs found for this mood with the current search.
               </p>
             )}
           </CardContent>
