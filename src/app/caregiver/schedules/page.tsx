@@ -6,8 +6,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
 import {
   Card,
@@ -43,72 +41,170 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-const medicines = [
+type Medicine = {
+  id: number;
+  user: string;
+  name: string;
+  dosage: string;
+  time: string;
+};
+
+type Task = {
+  id: number;
+  user: string;
+  description: string;
+  time: string;
+};
+
+const initialMedicines: Medicine[] = [
   {
+    id: 1,
     user: 'John Doe',
     name: 'Lisinopril',
     dosage: '10mg',
-    time: '08:00 AM',
+    time: '08:00',
   },
   {
+    id: 2,
     user: 'John Doe',
     name: 'Vitamin D',
     dosage: '1000 IU',
-    time: '08:00 AM',
+    time: '08:00',
   },
   {
+    id: 3,
     user: 'Jane Smith',
     name: 'Metformin',
     dosage: '500mg',
-    time: '09:00 PM',
+    time: '21:00',
   },
 ];
 
-const tasks = [
+const initialTasks: Task[] = [
   {
+    id: 1,
     user: 'John Doe',
     description: 'Morning Walk',
-    time: '09:00 AM',
+    time: '09:00',
   },
   {
+    id: 2,
     user: 'Jane Smith',
     description: 'Check blood pressure',
-    time: '10:00 AM',
+    time: '10:00',
   },
   {
+    id: 3,
     user: 'John Doe',
     description: 'Afternoon nap',
-    time: '02:00 PM',
+    time: '14:00',
   },
 ];
 
 const users = ['John Doe', 'Jane Smith', 'Robert Brown'];
 
+type ScheduleItem = Partial<Medicine & Task>;
+
 export default function SchedulesPage() {
   const [activeTab, setActiveTab] = useState('medicine');
+  const [isDialogOpen, setDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
+
+  const [medicines, setMedicines] = useState<Medicine[]>(initialMedicines);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+
+  // Form state
+  const [selectedUser, setSelectedUser] = useState('');
+  const [nameOrDesc, setNameOrDesc] = useState('');
+  const [dosage, setDosage] = useState('');
+  const [time, setTime] = useState('');
+
+  useEffect(() => {
+    if (editingItem) {
+      setSelectedUser(editingItem.user || '');
+      setNameOrDesc(editingItem.name || editingItem.description || '');
+      setDosage(editingItem.dosage || '');
+      setTime(editingItem.time || '');
+    } else {
+      // Reset form when adding a new item
+      setSelectedUser('');
+      setNameOrDesc('');
+      setDosage('');
+      setTime('');
+    }
+  }, [editingItem]);
+
+  const openAddDialog = () => {
+    setEditingItem(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: ScheduleItem, type: 'medicine' | 'task') => {
+    setEditingItem({ ...item, type });
+    setDialogOpen(true);
+  };
   
   const handleSave = () => {
-    // In a real app, you'd handle form validation and saving data to Firestore here.
-    console.log('Saving schedule item...');
-    // After saving, you would close the dialog and refresh the list.
-  }
+    if (editingItem) {
+      // Update existing item
+      if (activeTab === 'medicine') {
+        setMedicines(
+          medicines.map((m) =>
+            m.id === editingItem.id
+              ? { ...m, user: selectedUser, name: nameOrDesc, dosage, time }
+              : m
+          )
+        );
+      } else {
+        setTasks(
+          tasks.map((t) =>
+            t.id === editingItem.id
+              ? { ...t, user: selectedUser, description: nameOrDesc, time }
+              : t
+          )
+        );
+      }
+    } else {
+      // Add new item
+      if (activeTab === 'medicine') {
+        const newMed: Medicine = {
+            id: Date.now(),
+            user: selectedUser,
+            name: nameOrDesc,
+            dosage,
+            time,
+        };
+        setMedicines([...medicines, newMed]);
+      } else {
+        const newTask: Task = {
+            id: Date.now(),
+            user: selectedUser,
+            description: nameOrDesc,
+            time,
+        };
+        setTasks([...tasks, newTask]);
+      }
+    }
+
+    setDialogOpen(false);
+  };
+
+  const isFormValid = selectedUser && nameOrDesc && time && (activeTab === 'tasks' || dosage);
 
   return (
-    <Dialog>
+    <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
       <Tabs defaultValue="medicine" onValueChange={setActiveTab}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="medicine">Medicine</TabsTrigger>
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
           </TabsList>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Schedule Item
-            </Button>
-          </DialogTrigger>
+          <Button onClick={openAddDialog}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add Schedule Item
+          </Button>
         </div>
         <TabsContent value="medicine" className="mt-4">
           <Card>
@@ -132,8 +228,8 @@ export default function SchedulesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {medicines.map((med, index) => (
-                    <TableRow key={index}>
+                  {medicines.map((med) => (
+                    <TableRow key={med.id}>
                       <TableCell className="font-medium">{med.user}</TableCell>
                       <TableCell>{med.name}</TableCell>
                       <TableCell>
@@ -153,7 +249,11 @@ export default function SchedulesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openEditDialog(med, 'medicine')}
+                            >
+                              Edit
+                            </DropdownMenuItem>
                             <DropdownMenuItem>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -186,8 +286,8 @@ export default function SchedulesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tasks.map((task, index) => (
-                    <TableRow key={index}>
+                  {tasks.map((task) => (
+                    <TableRow key={task.id}>
                       <TableCell className="font-medium">
                         {task.user}
                       </TableCell>
@@ -206,7 +306,11 @@ export default function SchedulesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                             <DropdownMenuItem
+                              onClick={() => openEditDialog(task, 'task')}
+                            >
+                              Edit
+                            </DropdownMenuItem>
                             <DropdownMenuItem>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -221,9 +325,14 @@ export default function SchedulesPage() {
       </Tabs>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New {activeTab === 'medicine' ? 'Medicine' : 'Task'}</DialogTitle>
+          <DialogTitle>
+            {editingItem ? 'Edit' : 'Add New'}{' '}
+            {activeTab === 'medicine' ? 'Medicine' : 'Task'}
+          </DialogTitle>
           <DialogDescription>
-            Fill out the details below to add a new item to the schedule.
+            Fill out the details below to{' '}
+            {editingItem ? 'update the' : 'add a new'}{' '}
+            item to the schedule.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -231,45 +340,74 @@ export default function SchedulesPage() {
             <Label htmlFor="user" className="text-right">
               User
             </Label>
-            <Select>
-                <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select a user" />
-                </SelectTrigger>
-                <SelectContent>
-                    {users.map((user, index) => (
-                        <SelectItem key={index} value={user.toLowerCase().replace(' ', '-')}>{user}</SelectItem>
-                    ))}
-                </SelectContent>
+            <Select value={selectedUser} onValueChange={setSelectedUser}>
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select a user" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((user, index) => (
+                  <SelectItem
+                    key={index}
+                    value={user}
+                  >
+                    {user}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">
               {activeTab === 'medicine' ? 'Medicine' : 'Task'}
             </Label>
-            <Input id="name" placeholder={activeTab === 'medicine' ? 'e.g. Lisinopril' : 'e.g. Morning Walk'} className="col-span-3" />
+            <Input
+              id="name"
+              value={nameOrDesc}
+              onChange={(e) => setNameOrDesc(e.target.value)}
+              placeholder={
+                activeTab === 'medicine' ? 'e.g. Lisinopril' : 'e.g. Morning Walk'
+              }
+              className="col-span-3"
+            />
           </div>
-           {activeTab === 'medicine' && (
-             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="dosage" className="text-right">
-                    Dosage
-                </Label>
-                <Input id="dosage" placeholder="e.g. 10mg" className="col-span-3" />
+          {activeTab === 'medicine' && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dosage" className="text-right">
+                Dosage
+              </Label>
+              <Input
+                id="dosage"
+                value={dosage}
+                onChange={(e) => setDosage(e.target.value)}
+                placeholder="e.g. 10mg"
+                className="col-span-3"
+              />
             </div>
-           )}
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="time" className="text-right">
               Time
             </Label>
-            <Input id="time" type="time" className="col-span-3" />
+            <Input
+              id="time"
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="col-span-3"
+            />
           </div>
         </div>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button type="submit" onClick={handleSave}>Save changes</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" onClick={handleSave} disabled={!isFormValid}>
+            Save changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
