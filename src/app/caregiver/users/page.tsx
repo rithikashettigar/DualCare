@@ -48,25 +48,15 @@ import { MoreHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import {
-  useFirestore,
-  useCollection,
-  useMemoFirebase,
-  WithId,
-} from '@/firebase';
-import {
-  addUser,
-  updateUser,
-  deleteUser,
-  type User as FirestoreUser,
-} from '@/lib/firestore';
-import { collection, query, where } from 'firebase/firestore';
 
-// Combined type for UI display
-type UserDisplay = WithId<FirestoreUser> & {
+// Simplified User type for local state
+type UserDisplay = {
+  id: string;
+  name: string;
+  email: string;
   initials: string;
-  status: 'Active' | 'Inactive'; // Assuming status is determined by some logic
-  lastActivity: string; // Assuming this comes from somewhere
+  status: 'Active' | 'Inactive';
+  lastActivity: string;
 };
 
 const generateInitials = (name: string) =>
@@ -76,9 +66,38 @@ const generateInitials = (name: string) =>
     .join('')
     .toUpperCase() || '';
 
+const initialUsers: UserDisplay[] = [
+    {
+        id: 'user1',
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        initials: 'JD',
+        status: 'Active',
+        lastActivity: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    },
+    {
+        id: 'user2',
+        name: 'Jane Smith',
+        email: 'jane.smith@example.com',
+        initials: 'JS',
+        status: 'Active',
+        lastActivity: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    },
+    {
+        id: 'user3',
+        name: 'Robert Brown',
+        email: 'robert.brown@example.com',
+        initials: 'RB',
+        status: 'Inactive',
+        lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    },
+];
+
+
 export default function UsersPage() {
   const { toast } = useToast();
-  const firestore = useFirestore();
+  const [users, setUsers] = useState<UserDisplay[]>(initialUsers);
+  const [isUsersLoading, setIsUsersLoading] = useState(true);
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -89,53 +108,27 @@ export default function UsersPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
-  const usersQuery = useMemoFirebase(
-    () =>
-      firestore
-        ? query(collection(firestore, 'users'), where('userType', '==', 'endUser'))
-        : null,
-    [firestore]
-  );
-  const {
-    data: usersData,
-    isLoading: isUsersLoading,
-    error: usersError,
-  } = useCollection<FirestoreUser>(usersQuery);
+  useEffect(() => {
+    // Simulate loading
+    setTimeout(() => setIsUsersLoading(false), 500);
+  }, []);
 
-  const users = useMemo<UserDisplay[]>(() => {
-    if (!usersData) return [];
-    return usersData.map((user) => ({
-      ...user,
-      initials: generateInitials(user.name),
-      // These are placeholder values as they are not in the Firestore model
-      status: 'Active',
-      lastActivity: new Date().toISOString(),
-    }));
-  }, [usersData]);
 
   useEffect(() => {
-    if (editingUser) {
-      setName(editingUser.name);
-      setEmail(editingUser.email);
-    } else {
-      resetForm();
+    if (isFormDialogOpen) {
+        if (editingUser) {
+          setName(editingUser.name);
+          setEmail(editingUser.email);
+        } else {
+          resetForm();
+        }
     }
-  }, [editingUser]);
-  
-  useEffect(() => {
-    if(usersError) {
-      toast({
-        variant: 'destructive',
-        title: 'Error fetching users',
-        description: usersError.message,
-      });
-    }
-  }, [usersError, toast])
-
+  }, [isFormDialogOpen, editingUser]);
 
   const resetForm = () => {
     setName('');
     setEmail('');
+    setEditingUser(null);
   };
 
   const handleOpenAddDialog = () => {
@@ -155,31 +148,40 @@ export default function UsersPage() {
   };
 
   const handleSaveUser = () => {
-    if (!isFormValid || !firestore) return;
+    if (!isFormValid) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Form',
+            description: 'Please fill in both name and email.',
+        });
+        return;
+    };
 
     if (editingUser) {
       // Update user
-      updateUser(firestore, editingUser.id, { name, email });
+      setUsers(users.map(u => u.id === editingUser.id ? {...u, name, email} : u));
       toast({ title: 'User updated successfully!' });
     } else {
       // Add new user
-      const newUser: Omit<FirestoreUser, 'id'> = {
+      const newUser: UserDisplay = {
+        id: `user-${Date.now()}`,
         name,
         email,
-        userType: 'endUser',
-        language: 'en',
+        initials: generateInitials(name),
+        status: 'Active',
+        lastActivity: new Date().toISOString(),
       };
-      addUser(firestore, newUser);
+      setUsers([newUser, ...users]);
       toast({ title: 'User added successfully!' });
     }
 
     setFormDialogOpen(false);
-    setEditingUser(null);
+    resetForm();
   };
 
   const handleDeleteUser = () => {
-    if (!userToDelete || !firestore) return;
-    deleteUser(firestore, userToDelete.id);
+    if (!userToDelete) return;
+    setUsers(users.filter(u => u.id !== userToDelete.id));
     toast({
       title: 'User removed.',
       description: `${userToDelete.name} has been removed.`,
@@ -300,7 +302,10 @@ export default function UsersPage() {
           </CardFooter>
         </Card>
       </div>
-      <Dialog open={isFormDialogOpen} onOpenChange={setFormDialogOpen}>
+      <Dialog open={isFormDialogOpen} onOpenChange={(isOpen) => {
+        if (!isOpen) resetForm();
+        setFormDialogOpen(isOpen);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
@@ -370,7 +375,7 @@ export default function UsersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteUser}
               className="bg-destructive hover:bg-destructive/90"

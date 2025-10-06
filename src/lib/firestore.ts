@@ -38,49 +38,6 @@ export type Task = {
   time: string;
 };
 
-
-// Function to add a new user to Firestore
-export const addUser = (db: Firestore, user: Omit<User, 'id'>) => {
-  const usersCollection = collection(db, 'users');
-  addDoc(usersCollection, { ...user, createdAt: serverTimestamp() }).catch(async (serverError) => {
-    const permissionError = new FirestorePermissionError({
-      path: usersCollection.path,
-      operation: 'create',
-      requestResourceData: user,
-    } satisfies SecurityRuleContext);
-    errorEmitter.emit('permission-error', permissionError);
-  });
-};
-
-// Function to update an existing user in Firestore
-export const updateUser = (
-  db: Firestore,
-  userId: string,
-  data: Partial<Omit<User, 'id'>>
-) => {
-  const userDoc = doc(db, 'users', userId);
-  updateDoc(userDoc, data).catch(async (serverError) => {
-    const permissionError = new FirestorePermissionError({
-      path: userDoc.path,
-      operation: 'update',
-      requestResourceData: data,
-    } satisfies SecurityRuleContext);
-    errorEmitter.emit('permission-error', permissionError);
-  });
-};
-
-// Function to delete a user from Firestore
-export const deleteUser = (db: Firestore, userId: string) => {
-  const userDoc = doc(db, 'users', userId);
-  deleteDoc(userDoc).catch(async (serverError) => {
-    const permissionError = new FirestorePermissionError({
-      path: userDoc.path,
-      operation: 'delete',
-    } satisfies SecurityRuleContext);
-    errorEmitter.emit('permission-error', permissionError);
-  });
-};
-
 // Medicine Functions
 export const addMedicine = (db: Firestore, userId: string, medicine: Omit<Medicine, 'id' | 'userId'>) => {
     const medicineCollection = collection(db, `users/${userId}/medicines`);
