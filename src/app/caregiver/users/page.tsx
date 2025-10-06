@@ -48,77 +48,70 @@ import { MoreHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  useFirestore,
+  useCollection,
+  useMemoFirebase,
+  WithId,
+} from '@/firebase';
+import {
+  addUser,
+  updateUser,
+  deleteUser,
+  type User as FirestoreUser,
+} from '@/lib/firestore';
+import { collection, query, where } from 'firebase/firestore';
 
-// Base type for a user, aligning with expected structure.
-export type User = {
-  id: string;
-  name: string;
-  email: string;
-  userType: 'caregiver' | 'endUser';
-  language: string;
-  status: 'Active' | 'Inactive';
-  lastActivity: string;
+// Combined type for UI display
+type UserDisplay = WithId<FirestoreUser> & {
   initials: string;
+  status: 'Active' | 'Inactive'; // Assuming status is determined by some logic
+  lastActivity: string; // Assuming this comes from somewhere
 };
-
-// Initial static data for demonstration purposes.
-const initialUsers: Omit<User, 'id' | 'initials' | 'lastActivity'>[] = [
-  {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    userType: 'endUser',
-    language: 'en',
-    status: 'Active',
-  },
-  {
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    userType: 'endUser',
-    language: 'en',
-    status: 'Active',
-  },
-  {
-    name: 'Robert Brown',
-    email: 'robert.brown@example.com',
-    userType: 'endUser',
-    language: 'en',
-    status: 'Inactive',
-  },
-];
 
 const generateInitials = (name: string) =>
   name
-    .split(' ')
+    ?.split(' ')
     .map((n) => n[0])
     .join('')
-    .toUpperCase();
+    .toUpperCase() || '';
 
 export default function UsersPage() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>(() =>
-    initialUsers.map((user, index) => ({
-      ...user,
-      id: `user-${index + 1}`,
-      initials: generateInitials(user.name),
-      lastActivity: new Date().toISOString(),
-    }))
-  );
-  
-  const [isLoading, setIsLoading] = useState(true);
+  const firestore = useFirestore();
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UserDisplay | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserDisplay | null>(null);
 
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
 
-  // Simulate initial data loading
-  useEffect(() => {
-    setTimeout(() => setIsLoading(false), 500);
-  }, []);
+  const usersQuery = useMemoFirebase(
+    () =>
+      firestore
+        ? query(collection(firestore, 'users'), where('userType', '==', 'endUser'))
+        : null,
+    [firestore]
+  );
+  const {
+    data: usersData,
+    isLoading: isUsersLoading,
+    error: usersError,
+  } = useCollection<FirestoreUser>(usersQuery);
+
+  const users = useMemo<UserDisplay[]>(() => {
+    if (!usersData) return [];
+    return usersData.map((user) => ({
+      ...user,
+      initials: generateInitials(user.name),
+      // These are placeholder values as they are not in the Firestore model
+      status: 'Active',
+      lastActivity: new Date().toISOString(),
+    }));
+  }, [usersData]);
 
   useEffect(() => {
     if (editingUser) {
@@ -128,6 +121,17 @@ export default function UsersPage() {
       resetForm();
     }
   }, [editingUser]);
+  
+  useEffect(() => {
+    if(usersError) {
+      toast({
+        variant: 'destructive',
+        title: 'Error fetching users',
+        description: usersError.message,
+      });
+    }
+  }, [usersError, toast])
+
 
   const resetForm = () => {
     setName('');
@@ -140,40 +144,32 @@ export default function UsersPage() {
     setFormDialogOpen(true);
   };
 
-  const handleOpenEditDialog = (user: User) => {
+  const handleOpenEditDialog = (user: UserDisplay) => {
     setEditingUser(user);
     setFormDialogOpen(true);
   };
 
-  const handleOpenDeleteDialog = (user: User) => {
+  const handleOpenDeleteDialog = (user: UserDisplay) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
   };
 
   const handleSaveUser = () => {
-    if (!name || !email) return;
+    if (!isFormValid || !firestore) return;
 
     if (editingUser) {
       // Update user
-      setUsers(
-        users.map((u) =>
-          u.id === editingUser.id ? { ...u, name, email, initials: generateInitials(name) } : u
-        )
-      );
+      updateUser(firestore, editingUser.id, { name, email });
       toast({ title: 'User updated successfully!' });
     } else {
       // Add new user
-      const newUser: User = {
-        id: `user-${Date.now()}`,
+      const newUser: Omit<FirestoreUser, 'id'> = {
         name,
         email,
         userType: 'endUser',
         language: 'en',
-        status: 'Active',
-        lastActivity: new Date().toISOString(),
-        initials: generateInitials(name),
       };
-      setUsers([newUser, ...users]);
+      addUser(firestore, newUser);
       toast({ title: 'User added successfully!' });
     }
 
@@ -182,8 +178,8 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = () => {
-    if (!userToDelete) return;
-    setUsers(users.filter((u) => u.id !== userToDelete.id));
+    if (!userToDelete || !firestore) return;
+    deleteUser(firestore, userToDelete.id);
     toast({
       title: 'User removed.',
       description: `${userToDelete.name} has been removed.`,
@@ -219,7 +215,7 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isUsersLoading ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center">
                       Loading users...
