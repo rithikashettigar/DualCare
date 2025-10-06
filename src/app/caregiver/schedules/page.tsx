@@ -52,64 +52,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState, useEffect, useMemo } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, WithId } from '@/firebase';
-import {
-  collection,
-  collectionGroup,
-  query,
-  where,
-} from 'firebase/firestore';
-import {
-  type User,
-  type Medicine,
-  type Task,
-  addMedicine,
-  updateMedicine,
-  deleteMedicine,
-  addTask,
-  updateTask,
-  deleteTask,
-} from '@/lib/firestore';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-type ScheduleItem = (WithId<Medicine> | WithId<Task>) & {
-  type: 'medicine' | 'task';
-  userName?: string;
+type Medicine = {
+  id: string;
+  user: string;
+  name: string;
+  dosage: string;
+  time: string;
 };
 
-// A helper to map user IDs to names for display
-const createUserMap = (users: WithId<User>[]) => {
-    return users.reduce((acc, user) => {
-        acc[user.id] = user.name;
-        return acc;
-    }, {} as Record<string, string>);
-}
+type Task = {
+  id: string;
+  user: string;
+  description: string;
+  time: string;
+};
+
+type ScheduleItem = (Medicine | Task) & {
+  type: 'medicine' | 'task';
+};
+
+const users = ['John Doe', 'Jane Smith', 'Robert Brown'];
+
+const initialMedicines: Medicine[] = [
+  { id: 'med1', user: 'John Doe', name: 'Lisinopril', dosage: '10mg', time: '08:00' },
+  { id: 'med2', user: 'Jane Smith', name: 'Metformin', dosage: '500mg', time: '09:00' },
+  { id: 'med3', user: 'John Doe', name: 'Aspirin', dosage: '81mg', time: '08:00' },
+];
+
+const initialTasks: Task[] = [
+  { id: 'task1', user: 'John Doe', description: 'Morning Walk', time: '07:00' },
+  { id: 'task2', user: 'Jane Smith', description: 'Check Blood Sugar', time: '09:00' },
+  { id: 'task3', user: 'Robert Brown', description: 'Physical Therapy', time: '11:00' },
+];
 
 export default function SchedulesPage() {
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('medicine');
+
+  const [medicines, setMedicines] = useState<Medicine[]>(initialMedicines);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<ScheduleItem | null>(null);
-
-  // Fetch users to populate selector and map names
-  const usersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'users'), where('userType', '==', 'endUser')) : null, [firestore]);
-  const { data: usersData, isLoading: isUsersLoading } = useCollection<User>(usersQuery);
-  const userMap = useMemo(() => usersData ? createUserMap(usersData) : {}, [usersData]);
-
-  // Fetch all medicines using a collection group query
-  const medicinesQuery = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'medicines') : null, [firestore]);
-  const { data: medicinesData, isLoading: isMedsLoading } = useCollection<Medicine>(medicinesQuery);
-  const medicines = useMemo(() => medicinesData?.map(m => ({...m, userName: userMap[m.userId]})) || [], [medicinesData, userMap]);
-
-  // Fetch all tasks using a collection group query
-  const tasksQuery = useMemoFirebase(() => firestore ? collectionGroup(firestore, 'tasks') : null, [firestore]);
-  const { data: tasksData, isLoading: isTasksLoading } = useCollection<Task>(tasksQuery);
-  const tasks = useMemo(() => tasksData?.map(t => ({...t, userName: userMap[t.userId]})) || [], [tasksData, userMap]);
 
   // Form state
   const [selectedUser, setSelectedUser] = useState('');
@@ -118,15 +108,17 @@ export default function SchedulesPage() {
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    if (isFormDialogOpen && editingItem) {
-      setSelectedUser(editingItem.userId || '');
-      setNameOrDesc(
-        'name' in editingItem ? editingItem.name || '' : ('description' in editingItem ? editingItem.description || '' : '')
-      );
-      setDosage('dosage' in editingItem ? editingItem.dosage || '' : '');
-      setTime(editingItem.time || '');
-    } else {
-      resetForm();
+    if (isFormDialogOpen) {
+      if (editingItem) {
+        setSelectedUser(editingItem.user);
+        setNameOrDesc('name' in editingItem ? editingItem.name : editingItem.description);
+        setTime(editingItem.time);
+        if ('dosage' in editingItem) {
+          setDosage(editingItem.dosage);
+        }
+      } else {
+        resetForm();
+      }
     }
   }, [isFormDialogOpen, editingItem]);
 
@@ -135,10 +127,11 @@ export default function SchedulesPage() {
     setNameOrDesc('');
     setDosage('');
     setTime('');
+    setEditingItem(null);
   };
 
   const openAddDialog = () => {
-    setEditingItem(null);
+    resetForm();
     setFormDialogOpen(true);
   };
 
@@ -153,38 +146,48 @@ export default function SchedulesPage() {
   };
 
   const handleSave = () => {
-    if (!isFormValid || !firestore) return;
+    if (!isFormValid) {
+         toast({
+            variant: 'destructive',
+            title: 'Missing Fields',
+            description: 'Please fill out all required fields.',
+        });
+        return;
+    }
 
     if (editingItem) {
       // Update existing item
       if (editingItem.type === 'medicine') {
-        updateMedicine(firestore, selectedUser, editingItem.id, { user: selectedUser, name: nameOrDesc, dosage, time });
+        setMedicines(medicines.map(m => m.id === editingItem.id ? { ...m, user: selectedUser, name: nameOrDesc, dosage, time } : m));
         toast({ title: "Medicine Updated" });
       } else {
-        updateTask(firestore, selectedUser, editingItem.id, { user: selectedUser, description: nameOrDesc, time });
+        setTasks(tasks.map(t => t.id === editingItem.id ? { ...t, user: selectedUser, description: nameOrDesc, time } : t));
         toast({ title: "Task Updated" });
       }
     } else {
       // Add new item
       if (activeTab === 'medicine') {
-        addMedicine(firestore, selectedUser, { name: nameOrDesc, dosage, time });
+        const newMed: Medicine = { id: `med-${Date.now()}`, user: selectedUser, name: nameOrDesc, dosage, time };
+        setMedicines([newMed, ...medicines]);
         toast({ title: "Medicine Added" });
       } else {
-        addTask(firestore, selectedUser, { description: nameOrDesc, time });
+        const newTask: Task = { id: `task-${Date.now()}`, user: selectedUser, description: nameOrDesc, time };
+        setTasks([newTask, ...tasks]);
         toast({ title: "Task Added" });
       }
     }
     setFormDialogOpen(false);
+    resetForm();
   };
 
   const handleDelete = () => {
-    if (!itemToDelete || !firestore) return;
+    if (!itemToDelete) return;
 
     if (itemToDelete.type === 'medicine') {
-      deleteMedicine(firestore, itemToDelete.userId, itemToDelete.id);
+      setMedicines(medicines.filter(m => m.id !== itemToDelete.id));
       toast({ title: "Medicine Deleted" });
     } else {
-      deleteTask(firestore, itemToDelete.userId, itemToDelete.id);
+      setTasks(tasks.filter(t => t.id !== itemToDelete.id));
       toast({ title: "Task Deleted" });
     }
 
@@ -192,12 +195,10 @@ export default function SchedulesPage() {
     setItemToDelete(null);
   };
 
-  const isLoading = isUsersLoading || isMedsLoading || isTasksLoading;
-  const isFormValid = selectedUser && nameOrDesc && time && (activeTab === 'tasks' || dosage);
+  const isFormValid = selectedUser && nameOrDesc && time && (activeTab === 'tasks' || (activeTab === 'medicine' && dosage));
 
   return (
     <>
-      <Dialog open={isFormDialogOpen} onOpenChange={setFormDialogOpen}>
         <Tabs defaultValue="medicine" value={activeTab} onValueChange={setActiveTab}>
           <div className="flex items-center justify-between">
             <TabsList>
@@ -231,10 +232,9 @@ export default function SchedulesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>}
-                    {!isLoading && medicines.map((med) => (
+                    {medicines.map((med) => (
                       <TableRow key={med.id}>
-                        <TableCell className="font-medium">{med.userName || med.userId}</TableCell>
+                        <TableCell className="font-medium">{med.user}</TableCell>
                         <TableCell>{med.name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{med.dosage}</Badge>
@@ -295,11 +295,10 @@ export default function SchedulesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Loading...</TableCell></TableRow>}
-                    {!isLoading && tasks.map((task) => (
+                    {tasks.map((task) => (
                       <TableRow key={task.id}>
                         <TableCell className="font-medium">
-                          {task.userName || task.userId}
+                          {task.user}
                         </TableCell>
                         <TableCell>{task.description}</TableCell>
                         <TableCell>{task.time}</TableCell>
@@ -338,6 +337,11 @@ export default function SchedulesPage() {
             </Card>
           </TabsContent>
         </Tabs>
+      
+      <Dialog open={isFormDialogOpen} onOpenChange={(isOpen) => {
+          if (!isOpen) resetForm();
+          setFormDialogOpen(isOpen);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
@@ -355,17 +359,17 @@ export default function SchedulesPage() {
               <Label htmlFor="user" className="text-right">
                 User
               </Label>
-              <Select value={selectedUser} onValueChange={setSelectedUser} disabled={!!editingItem}>
+              <Select value={selectedUser} onValueChange={setSelectedUser}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select a user" />
                 </SelectTrigger>
                 <SelectContent>
-                  {usersData?.map((user) => (
+                  {users.map((user) => (
                     <SelectItem
-                      key={user.id}
-                      value={user.id}
+                      key={user}
+                      value={user}
                     >
-                      {user.name}
+                      {user}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -426,6 +430,7 @@ export default function SchedulesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
