@@ -20,6 +20,7 @@ import {
   LogOut,
   Bell,
   HeartPulse,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -61,6 +62,8 @@ export default function CaregiverLayout({
         return 'Schedules';
       case '/caregiver/reports':
         return 'Reports';
+      case '/caregiver/records':
+        return 'Medical Records';
       case '/caregiver/settings':
         return 'Settings';
       default:
@@ -118,6 +121,17 @@ export default function CaregiverLayout({
                   <Link href="/caregiver/schedules">
                     <CalendarClock />
                     Schedules
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/caregiver/records'}
+                >
+                  <Link href="/caregiver/records">
+                    <FileText />
+                    Medical Records
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
