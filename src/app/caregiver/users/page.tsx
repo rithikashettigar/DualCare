@@ -45,47 +45,43 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MoreHorizontal } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useState, useEffect } from 'react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useState, useEffect, useMemo } from 'react';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import { addUser, updateUser, deleteUser, type User as FirestoreUser } from '@/lib/firestore';
+import { useToast } from '@/hooks/use-toast';
 
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  status: 'Active' | 'Inactive';
-  lastActivity: string;
+// Augmented User type for client-side display
+type User = FirestoreUser & {
   initials: string;
 };
 
-const initialUsers: User[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    status: 'Active',
-    lastActivity: '2 hours ago',
-    initials: 'JD',
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    status: 'Active',
-    lastActivity: '5 hours ago',
-    initials: 'JS',
-  },
-  {
-    id: '3',
-    name: 'Robert Brown',
-    email: 'robert.brown@example.com',
-    status: 'Inactive',
-    lastActivity: '3 days ago',
-    initials: 'RB',
-  },
-];
-
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const usersQuery = useMemoFirebase(
+    () =>
+      firestore
+        ? query(collection(firestore, 'users'), where('userType', '==', 'endUser'))
+        : null,
+    [firestore]
+  );
+  const { data: usersData, isLoading } = useCollection<FirestoreUser>(usersQuery);
+
+  const users = useMemo(() => {
+    if (!usersData) return [];
+    return usersData.map((user) => ({
+      ...user,
+      initials: user.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase(),
+    }));
+  }, [usersData]);
+
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -114,34 +110,36 @@ export default function UsersPage() {
     resetForm();
     setFormDialogOpen(true);
   };
-  
+
   const handleOpenEditDialog = (user: User) => {
     setEditingUser(user);
     setFormDialogOpen(true);
   };
-  
+
   const handleOpenDeleteDialog = (user: User) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
   };
 
   const handleSaveUser = () => {
-    if (!name || !email) return;
+    if (!firestore || !name || !email) return;
 
     if (editingUser) {
-        // Update user
-        setUsers(users.map(u => u.id === editingUser.id ? {...u, name, email, initials: name.split(' ').map(n => n[0]).join('').toUpperCase() } : u));
+      // Update user
+      updateUser(firestore, editingUser.id, { name, email });
+      toast({ title: 'User updated successfully!' });
     } else {
-        // Add new user
-        const newUser: User = {
-          id: Date.now().toString(),
-          name,
-          email,
-          status: 'Active', // Default status
-          lastActivity: 'Just now',
-          initials: name.split(' ').map(n => n[0]).join('').toUpperCase()
-        };
-        setUsers([...users, newUser]);
+      // Add new user
+      const newUser: Omit<FirestoreUser, 'id'> = {
+        name,
+        email,
+        userType: 'endUser',
+        language: 'en',
+        status: 'Active',
+        lastActivity: new Date().toISOString(),
+      };
+      addUser(firestore, newUser);
+      toast({ title: 'User added successfully!' });
     }
 
     setFormDialogOpen(false);
@@ -149,11 +147,15 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = () => {
-    if (!userToDelete) return;
-    setUsers(users.filter(u => u.id !== userToDelete.id));
+    if (!firestore || !userToDelete) return;
+    deleteUser(firestore, userToDelete.id);
+    toast({
+      title: 'User removed.',
+      description: `${userToDelete.name} has been removed.`,
+    });
     setDeleteDialogOpen(false);
     setUserToDelete(null);
-  }
+  };
 
   const isFormValid = name && email;
 
@@ -182,54 +184,83 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-4">
-                        <Avatar>
-                          <AvatarFallback>{user.initials}</AvatarFallback>
-                        </Avatar>
-                        <div className="grid gap-1">
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-sm text-muted-foreground hidden md:block">
-                            {user.email}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant={
-                          user.status === 'Active' ? 'default' : 'secondary'
-                        }
-                      >
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {user.lastActivity}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            aria-haspopup="true"
-                            size="icon"
-                            variant="ghost"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => alert('Viewing details for ' + user.name)}>View Details</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenEditDialog(user)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenDeleteDialog(user)} className="text-destructive">Remove</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      Loading users...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      No users found. Add one to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-4">
+                          <Avatar>
+                            <AvatarFallback>{user.initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="grid gap-1">
+                            <p className="font-medium">{user.name}</p>
+                            <p className="text-sm text-muted-foreground hidden md:block">
+                              {user.email}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge
+                          variant={
+                            user.status === 'Active' ? 'default' : 'secondary'
+                          }
+                        >
+                          {user.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {new Date(user.lastActivity).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              aria-haspopup="true"
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Toggle menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() =>
+                                alert('Viewing details for ' + user.name)
+                              }
+                            >
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleOpenEditDialog(user)}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleOpenDeleteDialog(user)}
+                              className="text-destructive"
+                            >
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -241,9 +272,13 @@ export default function UsersPage() {
       <Dialog open={isFormDialogOpen} onOpenChange={setFormDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
+            <DialogTitle>
+              {editingUser ? 'Edit User' : 'Add New User'}
+            </DialogTitle>
             <DialogDescription>
-              {editingUser ? 'Update the details for this user.' : 'Enter the details for the new user you will be caring for.'}
+              {editingUser
+                ? 'Update the details for this user.'
+                : 'Enter the details for the new user you will be caring for.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -291,17 +326,24 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently remove the user and all their associated data.
+              This action cannot be undone. This will permanently remove the user
+              and all their associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive hover:bg-destructive/90"
+            >
               Remove User
             </AlertDialogAction>
           </AlertDialogFooter>
