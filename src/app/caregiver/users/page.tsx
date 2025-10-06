@@ -47,40 +47,64 @@ import { Label } from '@/components/ui/label';
 import { MoreHorizontal } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useState, useEffect, useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
-import { addUser, updateUser, deleteUser, type User as FirestoreUser } from '@/lib/firestore';
 import { useToast } from '@/hooks/use-toast';
 
-// Augmented User type for client-side display
-type User = FirestoreUser & {
+// Base type for a user, aligning with expected structure.
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  userType: 'caregiver' | 'endUser';
+  language: string;
+  status: 'Active' | 'Inactive';
+  lastActivity: string;
   initials: string;
 };
 
+// Initial static data for demonstration purposes.
+const initialUsers: Omit<User, 'id' | 'initials' | 'lastActivity'>[] = [
+  {
+    name: 'John Doe',
+    email: 'john.doe@example.com',
+    userType: 'endUser',
+    language: 'en',
+    status: 'Active',
+  },
+  {
+    name: 'Jane Smith',
+    email: 'jane.smith@example.com',
+    userType: 'endUser',
+    language: 'en',
+    status: 'Active',
+  },
+  {
+    name: 'Robert Brown',
+    email: 'robert.brown@example.com',
+    userType: 'endUser',
+    language: 'en',
+    status: 'Inactive',
+  },
+];
+
+const generateInitials = (name: string) =>
+  name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+
 export default function UsersPage() {
-  const firestore = useFirestore();
   const { toast } = useToast();
-
-  const usersQuery = useMemoFirebase(
-    () =>
-      firestore
-        ? query(collection(firestore, 'users'), where('userType', '==', 'endUser'))
-        : null,
-    [firestore]
-  );
-  const { data: usersData, isLoading } = useCollection<FirestoreUser>(usersQuery);
-
-  const users = useMemo(() => {
-    if (!usersData) return [];
-    return usersData.map((user) => ({
+  const [users, setUsers] = useState<User[]>(() =>
+    initialUsers.map((user, index) => ({
       ...user,
-      initials: user.name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase(),
-    }));
-  }, [usersData]);
+      id: `user-${index + 1}`,
+      initials: generateInitials(user.name),
+      lastActivity: new Date().toISOString(),
+    }))
+  );
+  
+  const [isLoading, setIsLoading] = useState(true);
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -90,6 +114,11 @@ export default function UsersPage() {
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+
+  // Simulate initial data loading
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 500);
+  }, []);
 
   useEffect(() => {
     if (editingUser) {
@@ -122,23 +151,29 @@ export default function UsersPage() {
   };
 
   const handleSaveUser = () => {
-    if (!firestore || !name || !email) return;
+    if (!name || !email) return;
 
     if (editingUser) {
       // Update user
-      updateUser(firestore, editingUser.id, { name, email });
+      setUsers(
+        users.map((u) =>
+          u.id === editingUser.id ? { ...u, name, email, initials: generateInitials(name) } : u
+        )
+      );
       toast({ title: 'User updated successfully!' });
     } else {
       // Add new user
-      const newUser: Omit<FirestoreUser, 'id'> = {
+      const newUser: User = {
+        id: `user-${Date.now()}`,
         name,
         email,
         userType: 'endUser',
         language: 'en',
         status: 'Active',
         lastActivity: new Date().toISOString(),
+        initials: generateInitials(name),
       };
-      addUser(firestore, newUser);
+      setUsers([newUser, ...users]);
       toast({ title: 'User added successfully!' });
     }
 
@@ -147,8 +182,8 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = () => {
-    if (!firestore || !userToDelete) return;
-    deleteUser(firestore, userToDelete.id);
+    if (!userToDelete) return;
+    setUsers(users.filter((u) => u.id !== userToDelete.id));
     toast({
       title: 'User removed.',
       description: `${userToDelete.name} has been removed.`,
