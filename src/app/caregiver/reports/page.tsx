@@ -15,6 +15,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -28,6 +36,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 const users = ['John Doe', 'Jane Smith', 'Robert Brown'];
 const dateRanges = [
@@ -50,21 +59,44 @@ const medicineAdherenceData = [
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))'];
 
 const moodData = [
-  { mood: '😊', count: 15, emoji: '😊' },
-  { mood: '😐', count: 5, emoji: '😐' },
-  { mood: '😢', count: 2, emoji: '😢' },
-  { mood: '😠', count: 1, emoji: '😠' },
+  { mood: 'Happy', count: 15, emoji: '😊' },
+  { mood: 'Neutral', count: 5, emoji: '😐' },
+  { mood: 'Sad', count: 2, emoji: '😢' },
+  { mood: 'Angry', count: 1, emoji: '😠' },
 ];
+
+const detailedMoodLogs = [
+  { id: 1, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-20 09:00 AM', notes: 'Felt great after morning walk.' },
+  { id: 2, user: 'Jane Smith', mood: 'Happy', timestamp: '2024-05-20 10:30 AM', notes: '' },
+  { id: 3, user: 'John Doe', mood: 'Neutral', timestamp: '2024-05-19 03:15 PM', notes: 'Just a normal afternoon.' },
+  { id: 4, user: 'Robert Brown', mood: 'Sad', timestamp: '2024-05-19 08:00 PM', notes: 'Missing family.' },
+  { id: 5, user: 'John Doe', mood: 'Happy', timestamp: '2024-05-18 11:00 AM', notes: '' },
+  { id: 6, user: 'Jane Smith', mood: 'Angry', timestamp: '2024-05-18 01:00 PM', notes: 'Frustrated with TV remote.'},
+  { id: 7, user: 'Jane Smith', mood: 'Sad', timestamp: '2024-05-20 01:00 PM', notes: 'Feeling a bit down.' },
+];
+
 
 export default function ReportsPage() {
   const [selectedUser, setSelectedUser] = useState('all');
   const [dateRange, setDateRange] = useState('last-30-days');
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
 
-  // Client-side state to prevent hydration errors for charts
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const handleMoodClick = (mood: string) => {
+    if (selectedMood === mood) {
+      setSelectedMood(null); // Deselect if clicking the same mood again
+    } else {
+      setSelectedMood(mood);
+    }
+  };
+
+  const filteredLogs = detailedMoodLogs.filter(
+    (log) => log.mood === selectedMood
+  );
 
   return (
     <div className="space-y-6">
@@ -102,14 +134,14 @@ export default function ReportsPage() {
                 ))}
               </SelectContent>
             </Select>
-             <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon">
               <Download className="h-4 w-4" />
               <span className="sr-only">Export Reports</span>
             </Button>
           </div>
         </CardHeader>
       </Card>
-      
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -130,7 +162,9 @@ export default function ReportsPage() {
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) =>
+                      `${name} ${(percent * 100).toFixed(0)}%`
+                    }
                   >
                     {medicineAdherenceData.map((entry, index) => (
                       <Cell
@@ -150,7 +184,7 @@ export default function ReportsPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Task Completion</CardTitle>
@@ -160,8 +194,12 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             {isClient && (
-               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={taskCompletionData} layout="vertical" margin={{ left: 10 }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={taskCompletionData}
+                  layout="vertical"
+                  margin={{ left: 10 }}
+                >
                   <XAxis type="number" hide />
                   <YAxis
                     dataKey="name"
@@ -191,16 +229,25 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-       <Card>
+      <Card>
         <CardHeader>
           <CardTitle>Mood Log Summary</CardTitle>
           <CardDescription>
-            Overview of moods logged by users in the selected period.
+            Overview of moods logged by users. Click an emoji to see details.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex justify-around items-center pt-6">
           {moodData.map((mood) => (
-            <div key={mood.mood} className="text-center">
+            <div
+              key={mood.mood}
+              onClick={() => handleMoodClick(mood.mood)}
+              className={cn(
+                'text-center p-3 rounded-lg cursor-pointer transition-all',
+                selectedMood === mood.mood
+                  ? 'bg-accent scale-110'
+                  : 'hover:bg-accent/50'
+              )}
+            >
               <span className="text-5xl md:text-6xl">{mood.emoji}</span>
               <p className="text-lg font-bold mt-2">{mood.count}</p>
               <p className="text-sm text-muted-foreground">Entries</p>
@@ -208,6 +255,49 @@ export default function ReportsPage() {
           ))}
         </CardContent>
       </Card>
+
+      {selectedMood && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Detailed Logs for: {selectedMood}</CardTitle>
+            <CardDescription>
+              Showing all entries logged as &quot;{selectedMood}&quot;.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {filteredLogs.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="font-medium">{log.user}</TableCell>
+                      <TableCell>{log.timestamp}</TableCell>
+                      <TableCell>
+                        {log.notes || (
+                          <span className="text-muted-foreground">
+                            No notes
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-center text-muted-foreground">
+                No detailed logs found for this mood in the selected period.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
