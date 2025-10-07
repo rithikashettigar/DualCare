@@ -39,6 +39,8 @@ function LoginForm() {
   const isCaregiver = role === 'caregiver';
 
   useEffect(() => {
+    // This effect runs only on the client, after hydration.
+    // It checks if the user is already logged in and redirects them.
     if (isClient && !isUserLoading && user) {
       const loginPath = isCaregiver ? '/caregiver' : '/user';
       router.push(loginPath);
@@ -81,7 +83,9 @@ function LoginForm() {
       setIsLoading(false);
     }
   };
-
+  
+  // Disable the form if it's not the client, or if auth state is loading, or if a submission is in progress.
+  // This helps prevent hydration mismatches.
   const isDisabled = isLoading || !isClient || isUserLoading;
 
   return (
@@ -128,7 +132,7 @@ function LoginForm() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={isDisabled}>
-            {isDisabled ? 'Logging in...' : 'Login'}
+            {isDisabled ? 'Loading...' : 'Login'}
           </Button>
         </form>
         {isCaregiver && (
