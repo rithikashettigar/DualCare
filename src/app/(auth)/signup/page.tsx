@@ -29,12 +29,17 @@ function SignupForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    if (!isUserLoading && user) {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (isClient && !isUserLoading && user) {
       router.push('/caregiver');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, isClient]);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -70,7 +75,7 @@ function SignupForm() {
     }
   };
 
-  const isDisabled = isLoading || isUserLoading;
+  const isDisabled = isLoading || !isClient || isUserLoading;
 
   return (
     <Card className="mx-auto max-w-sm w-full">

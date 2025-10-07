@@ -29,16 +29,21 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const role = searchParams.get('role') || 'user';
   const isCaregiver = role === 'caregiver';
 
   useEffect(() => {
-    if (!isUserLoading && user) {
+    if (isClient && !isUserLoading && user) {
       const loginPath = isCaregiver ? '/caregiver' : '/user';
       router.push(loginPath);
     }
-  }, [user, isUserLoading, router, isCaregiver]);
+  }, [user, isUserLoading, router, isCaregiver, isClient]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,7 +82,7 @@ function LoginForm() {
     }
   };
 
-  const isDisabled = isLoading || isUserLoading;
+  const isDisabled = isLoading || !isClient || isUserLoading;
 
   return (
     <Card className="mx-auto max-w-sm w-full">
