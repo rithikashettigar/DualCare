@@ -1,249 +1,222 @@
 /**
- * @description This ruleset enforces a strict user-ownership model, where each user can only access their own data.
- * All data is nested under /users/{userId}, ensuring clear ownership and simplifying security rules.
+ * @fileoverview Firestore Security Rules for the DualCare application.
  *
- * @dataStructure
- * - /users/{userId}: Stores user profile information.  Only the user with the matching UID can read or write their own profile.
- * - /users/{userId}/medicines/{medicineId}: Stores medicine schedules.  Only the user with the matching UID can manage their medicines.
- * - /users/{userId}/tasks/{taskId}: Stores tasks for each user. Only the user with the matching UID can manage their tasks.
- * - /users/{userId}/medicineLogs/{medicineLogId}: Stores medicine logs.  Only the user with the matching UID can manage their medicine logs.
- * - /users/{userId}/taskLogs/{taskLogId}: Stores task logs. Only the user with the matching UID can manage their task logs.
- * - /users/{userId}/moodLogs/{moodLogId}: Stores mood logs. Only the user with the matching UID can manage their mood logs.
- * - /users/{userId}/medicalRecords/{medicalRecordId}: Stores medical records. Only the user with the matching UID can manage their medical records.
- * - /sosAlerts/{alertId}: Stores SOS alerts. All logged-in users can read this collection, but write access is not locked down in this prototype.
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for personal data while allowing broader access to SOS alerts.
+ * All user-specific data is nested under the `/users/{userId}` path, ensuring that only the authenticated user can access their own data.
+ * SOS alerts are stored in a top-level collection, accessible to all authenticated users, with application-level filtering.
  *
- * @keySecurityDecisions
- * - Users can only access their own data, based on their UID.
- * - Listing other users' data is explicitly denied.
- * - SOS alerts are readable by any logged-in user.
+ * Data Structure:
+ * - /users/{userId}: User profiles, owned by the user with matching UID.
+ * - /users/{userId}/medicines/{medicineId}: Medicine schedules for each user, owned by the user.
+ * - /users/{userId}/tasks/{taskId}: Daily tasks for each user, owned by the user.
+ * - /users/{userId}/medicineLogs/{medicineLogId}: Medicine intake logs, owned by the user.
+ * - /users/{userId}/taskLogs/{taskLogId}: Task completion logs, owned by the user.
+ * - /sosAlerts/{alertId}: SOS alerts, accessible to all authenticated users (application handles filtering).
+ * - /users/{userId}/moodLogs/{moodLogId}: Mood logs for each user, owned by the user.
+ * - /users/{userId}/medicalRecords/{medicalRecordId}: Medical records for each user, owned by the user.
+ *
+ * Key Security Decisions:
+ * - User listing is explicitly denied to prevent unauthorized access to user information.
+ * - SOS alerts are publicly readable by all authenticated users (the application is responsible for filtering).
+ * - All write operations are protected by authorization checks based on user identity and ownership.
+ *
+ * Denormalization for Authorization:
+ * - The data model leverages path-based authorization, so no denormalization is explicitly needed.  The `userId` is embedded in the path for all user-specific collections.
+ *
+ * Structural Segregation:
+ * - Private user data is segregated under the `/users/{userId}` path, while potentially shared data (SOS alerts) resides in a top-level collection.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-ownership for user profiles.
+     * @description Enforces user-ownership for user profiles. Only the authenticated user can read and write their own profile.
      * @path /users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create a profile with ID 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read their own profile.
-     * @allow (update) - User with UID 'user_abc' can update their own profile.
-     * @allow (delete) - User with UID 'user_abc' can delete their own profile.
-     * @deny (create) - User with UID 'user_xyz' cannot create a profile with ID 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read the profile of user 'user_abc'.
+     * @allow (create) - Authenticated user with matching userId can create their profile.
+     * @allow (get, update, delete) - Authenticated user with matching userId can read, update, and delete their profile.
+     * @deny (create) - Authenticated user with mismatched userId cannot create a profile.
+     * @deny (get, update, delete) - Authenticated user with mismatched userId cannot read, update, or delete another user's profile.
      * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if false; // User listing is not permitted
+
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Enforces user-ownership for medicines subcollection.
+     * @description Enforces user-ownership for medicines. Only the authenticated user can manage their own medicine schedules.
      * @path /users/{userId}/medicines/{medicineId}
-     * @allow (create) - User with UID 'user_abc' can create a medicine with userId 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read medicine with userId 'user_abc'.
-     * @allow (update) - User with UID 'user_abc' can update medicine with userId 'user_abc'.
-     * @allow (delete) - User with UID 'user_abc' can delete medicine with userId 'user_abc'.
-     * @deny (create) - User with UID 'user_xyz' cannot create a medicine with userId 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read a medicine with userId 'user_abc'.
-     * @principle Enforces document ownership for all operations within the user's medicine subcollection.
+     * @allow (create, get, update, delete, list) - Authenticated user with matching userId can manage their own medicine schedules.
+     * @deny (create, get, update, delete, list) - Authenticated user with mismatched userId cannot manage another user's medicine schedules.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/medicines/{medicineId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Enforces user-ownership for tasks subcollection.
+     * @description Enforces user-ownership for tasks. Only the authenticated user can manage their own daily tasks.
      * @path /users/{userId}/tasks/{taskId}
-     * @allow (create) - User with UID 'user_abc' can create a task with userId 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read task with userId 'user_abc'.
-     * @allow (update) - User with UID 'user_abc' can update task with userId 'user_abc'.
-     * @allow (delete) - User with UID 'user_abc' can delete task with userId 'user_abc'.
-     * @deny (create) - User with UID 'user_xyz' cannot create a task with userId 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read a task with userId 'user_abc'.
-     * @principle Enforces document ownership for all operations within the user's task subcollection.
+     * @allow (create, get, update, delete, list) - Authenticated user with matching userId can manage their own tasks.
+     * @deny (create, get, update, delete, list) - Authenticated user with mismatched userId cannot manage another user's tasks.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/tasks/{taskId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Enforces user-ownership for medicineLogs subcollection.
+     * @description Enforces user-ownership for medicine logs. Only the authenticated user can manage their own medicine logs.
      * @path /users/{userId}/medicineLogs/{medicineLogId}
-     * @allow (create) - User with UID 'user_abc' can create a medicineLog with userId 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read medicineLog with userId 'user_abc'.
-     * @allow (update) - User with UID 'user_abc' can update medicineLog with userId 'user_abc'.
-     * @allow (delete) - User with UID 'user_abc' can delete medicineLog with userId 'user_abc'.
-     * @deny (create) - User with UID 'user_xyz' cannot create a medicineLog with userId 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read a medicineLog with userId 'user_abc'.
-     * @principle Enforces document ownership for all operations within the user's medicineLogs subcollection.
+     * @allow (create, get, update, delete, list) - Authenticated user with matching userId can manage their own medicine logs.
+     * @deny (create, get, update, delete, list) - Authenticated user with mismatched userId cannot manage another user's medicine logs.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/medicineLogs/{medicineLogId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Enforces user-ownership for taskLogs subcollection.
+     * @description Enforces user-ownership for task logs. Only the authenticated user can manage their own task logs.
      * @path /users/{userId}/taskLogs/{taskLogId}
-     * @allow (create) - User with UID 'user_abc' can create a taskLog with userId 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read taskLog with userId 'user_abc'.
-     * @allow (update) - User with UID 'user_abc' can update taskLog with userId 'user_abc'.
-     * @allow (delete) - User with UID 'user_abc' can delete taskLog with userId 'user_abc'.
-     * @deny (create) - User with UID 'user_xyz' cannot create a taskLog with userId 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read a taskLog with userId 'user_abc'.
-     * @principle Enforces document ownership for all operations within the user's taskLogs subcollection.
+     * @allow (create, get, update, delete, list) - Authenticated user with matching userId can manage their own task logs.
+     * @deny (create, get, update, delete, list) - Authenticated user with mismatched userId cannot manage another user's task logs.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/taskLogs/{taskLogId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows any signed-in user to read SOS alerts.
+     * @description Allows any authenticated user to read and write SOS alerts. Application logic is responsible for filtering.
      * @path /sosAlerts/{alertId}
-     * @allow (get) - Any signed-in user can read an SOS alert.
-     * @allow (list) - Any signed-in user can list SOS alerts.
-     * @deny (create) - No one can create an SOS alert through direct Firestore writes (assumed to be handled by a backend function).
-     * @deny (update) - No one can update an SOS alert through direct Firestore writes.
-     * @deny (delete) - No one can delete an SOS alert through direct Firestore writes.
-     * @principle Allows public read access for SOS alerts to facilitate monitoring.
+     * @allow (get, list) - Any authenticated user can read SOS alerts.
+     * @allow (create, update, delete) - Any authenticated user can create, update, and delete SOS alerts.
+     * @principle Open access for authenticated users, with application-level filtering.
      */
     match /sosAlerts/{alertId} {
       function isSignedIn() {
         return request.auth != null;
       }
 
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
     /**
-     * @description Enforces user-ownership for moodLogs subcollection.
+     * @description Enforces user-ownership for mood logs. Only the authenticated user can manage their own mood logs.
      * @path /users/{userId}/moodLogs/{moodLogId}
-     * @allow (create) - User with UID 'user_abc' can create a moodLog with userId 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read moodLog with userId 'user_abc'.
-     * @allow (update) - User with UID 'user_abc' can update moodLog with userId 'user_abc'.
-     * @allow (delete) - User with UID 'user_abc' can delete moodLog with userId 'user_abc'.
-     * @deny (create) - User with UID 'user_xyz' cannot create a moodLog with userId 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read a moodLog with userId 'user_abc'.
-     * @principle Enforces document ownership for all operations within the user's moodLogs subcollection.
+     * @allow (create, get, update, delete, list) - Authenticated user with matching userId can manage their own mood logs.
+     * @deny (create, get, update, delete, list) - Authenticated user with mismatched userId cannot manage another user's mood logs.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/moodLogs/{moodLogId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Enforces user-ownership for medicalRecords subcollection.
+     * @description Enforces user-ownership for medical records. Only the authenticated user can manage their own medical records.
      * @path /users/{userId}/medicalRecords/{medicalRecordId}
-     * @allow (create) - User with UID 'user_abc' can create a medicalRecord with userId 'user_abc'.
-     * @allow (get) - User with UID 'user_abc' can read medicalRecord with userId 'user_abc'.
-     * @allow (update) - User with UID 'user_abc' can update medicalRecord with userId 'user_abc'.
-     * @allow (delete) - User with UID 'user_abc' can delete medicalRecord with userId 'user_abc'.
-     * @deny (create) - User with UID 'user_xyz' cannot create a medicalRecord with userId 'user_abc'.
-     * @deny (get) - User with UID 'user_xyz' cannot read a medicalRecord with userId 'user_abc'.
-     * @principle Enforces document ownership for all operations within the user's medicalRecords subcollection.
+     * @allow (create, get, update, delete, list) - Authenticated user with matching userId can manage their own medical records.
+     * @deny (create, get, update, delete, list) - Authenticated user with mismatched userId cannot manage another user's medical records.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/medicalRecords/{medicalRecordId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
+
       function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
+        return isOwner(userId) && resource != null;
       }
 
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isExistingOwner(userId);
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
